@@ -1,9 +1,11 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Power, RefreshCw, Search, Save, ShieldCheck } from "lucide-react";
+import { Plus, Power, RefreshCw, Search, Save, ShieldCheck, Upload } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { uploadAvatar } from "@/lib/avatar-upload";
 import { apiFetch } from "@/lib/api/client-fetch";
+import { formatCpf, formatPhone } from "@/lib/formatters";
 import type { UserResponseDTO } from "@/lib/api/types";
 
 type DraftUser = {
@@ -36,6 +38,7 @@ export function UsersAdmin() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   const activeCount = useMemo(() => users.filter((user) => user.ativo).length, [users]);
 
@@ -75,6 +78,7 @@ export function UsersAdmin() {
   function resetDraft() {
     setEditing(null);
     setDraft(emptyDraft);
+    setAvatarFile(null);
   }
 
   async function saveUser(event: FormEvent) {
@@ -82,24 +86,41 @@ export function UsersAdmin() {
     setSaving(true);
     setMessage("");
     try {
+      if (!editing && !draft.cpf) {
+        throw new Error("Informe o CPF para cadastrar o usuario.");
+      }
+
       if (editing) {
+        const avatarUrl = avatarFile
+          ? await uploadAvatar(avatarFile, editing.id)
+          : draft.avatar_url;
+
         await apiFetch<UserResponseDTO>(`/api/v1/users/${editing.id}`, {
           method: "PUT",
           body: JSON.stringify({
             nome: draft.nome,
             cpf: draft.cpf,
             telefone: draft.telefone,
-            avatar_url: draft.avatar_url,
+            avatar_url: avatarUrl,
             ativo: draft.ativo,
             is_admin: draft.is_admin,
           }),
         });
         setMessage("Usuario atualizado.");
       } else {
-        await apiFetch<UserResponseDTO>("/api/v1/users", {
+        const created = await apiFetch<UserResponseDTO>("/api/v1/users", {
           method: "POST",
           body: JSON.stringify(draft),
         });
+
+        if (avatarFile) {
+          const avatarUrl = await uploadAvatar(avatarFile, created.id);
+          await apiFetch<UserResponseDTO>(`/api/v1/users/${created.id}`, {
+            method: "PUT",
+            body: JSON.stringify({ avatar_url: avatarUrl }),
+          });
+        }
+
         setMessage("Usuario criado.");
       }
       resetDraft();
@@ -233,9 +254,40 @@ export function UsersAdmin() {
             {!editing ? (
               <input className="field" placeholder="Senha inicial" type="password" minLength={6} value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} required />
             ) : null}
-            <input className="field" placeholder="CPF" value={draft.cpf} onChange={(event) => setDraft({ ...draft, cpf: event.target.value })} />
-            <input className="field" placeholder="Telefone" value={draft.telefone} onChange={(event) => setDraft({ ...draft, telefone: event.target.value })} />
-            <input className="field" placeholder="Avatar URL" value={draft.avatar_url} onChange={(event) => setDraft({ ...draft, avatar_url: event.target.value })} />
+            <input
+              className="field"
+              placeholder="CPF"
+              value={draft.cpf}
+              onChange={(event) => setDraft({ ...draft, cpf: formatCpf(event.target.value) })}
+              required
+              inputMode="numeric"
+              maxLength={14}
+            />
+            <input
+              className="field"
+              placeholder="Telefone"
+              value={draft.telefone}
+              onChange={(event) => setDraft({ ...draft, telefone: formatPhone(event.target.value) })}
+              inputMode="tel"
+              maxLength={15}
+            />
+            <label className="grid gap-2 text-sm font-medium text-slate-200">
+              Avatar
+              <span className="flex items-center gap-2">
+                <input
+                  className="field"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                />
+              </span>
+              {draft.avatar_url || avatarFile ? (
+                <span className="flex items-center gap-2 text-xs font-normal text-cyan-200">
+                  <Upload size={14} aria-hidden="true" />
+                  {avatarFile?.name ?? "Avatar atual mantido"}
+                </span>
+              ) : null}
+            </label>
             <label className="flex items-center gap-2 text-sm text-slate-200">
               <input type="checkbox" checked={draft.ativo} onChange={(event) => setDraft({ ...draft, ativo: event.target.checked })} />
               Usuario ativo

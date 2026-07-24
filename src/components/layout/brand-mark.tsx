@@ -1,15 +1,17 @@
-import { ShieldCheck } from "lucide-react";
+import Image from "next/image";
+import { BRAND_LOGO_URL } from "@/lib/brand";
 
 export function BrandMark() {
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-cyan-300/30 bg-cyan-400/10 text-cyan-200">
-        <ShieldCheck size={24} aria-hidden="true" />
-      </div>
-      <div>
-        <p className="text-lg font-semibold text-white">RaroNexus</p>
-        <p className="text-sm text-slate-400">Identity Provider</p>
-      </div>
+    <div className="flex items-center gap-3" aria-label="Rarotec RaroNexus">
+      <Image
+        src={BRAND_LOGO_URL}
+        alt="Rarotec"
+        width={176}
+        height={44}
+        className="h-11 w-auto object-contain"
+        priority
+      />
     </div>
   );
 }

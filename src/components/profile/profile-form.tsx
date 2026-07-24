@@ -1,9 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Save, UserRound } from "lucide-react";
+import Image from "next/image";
+import { Save, Upload, UserRound } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { uploadAvatar } from "@/lib/avatar-upload";
 import { apiFetch } from "@/lib/api/client-fetch";
+import { formatPhone } from "@/lib/formatters";
 import type { UserResponseDTO } from "@/lib/api/types";
 
 export function ProfileForm() {
@@ -11,6 +14,7 @@ export function ProfileForm() {
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,11 +36,17 @@ export function ProfileForm() {
     setSaving(true);
     setMessage("");
     try {
+      const nextAvatarUrl = avatarFile && user
+        ? await uploadAvatar(avatarFile, user.id)
+        : avatarUrl;
+
       const updated = await apiFetch<UserResponseDTO>("/api/v1/users/me", {
         method: "PUT",
-        body: JSON.stringify({ nome, telefone, avatar_url: avatarUrl }),
+        body: JSON.stringify({ nome, telefone, avatar_url: nextAvatarUrl }),
       });
       setUser(updated);
+      setAvatarUrl(updated.avatar_url ?? "");
+      setAvatarFile(null);
       setMessage("Perfil atualizado com sucesso.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro ao salvar perfil.");
@@ -73,13 +83,32 @@ export function ProfileForm() {
                 <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="telefone">
                   Telefone
                 </label>
-                <input id="telefone" className="field" value={telefone} onChange={(event) => setTelefone(event.target.value)} />
+                <input
+                  id="telefone"
+                  className="field"
+                  value={telefone}
+                  onChange={(event) => setTelefone(formatPhone(event.target.value))}
+                  inputMode="tel"
+                  maxLength={15}
+                />
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="avatar">
-                  Foto URL
+                  Foto
                 </label>
-                <input id="avatar" className="field" value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} />
+                <input
+                  id="avatar"
+                  className="field"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                />
+                {avatarFile ? (
+                  <p className="mt-2 flex items-center gap-2 text-sm text-cyan-200">
+                    <Upload size={15} aria-hidden="true" />
+                    {avatarFile.name}
+                  </p>
+                ) : null}
               </div>
               {message ? (
                 <p className="rounded-lg border border-cyan-400/30 bg-cyan-950/40 px-3 py-2 text-sm text-cyan-100">
@@ -95,6 +124,17 @@ export function ProfileForm() {
         </form>
 
         <aside className="panel h-fit p-5">
+          {avatarUrl ? (
+            <div className="mb-5 overflow-hidden rounded-lg border border-cyan-400/20 bg-slate-950">
+              <Image
+                src={avatarUrl}
+                alt={`Foto de ${user?.nome ?? "usuario"}`}
+                width={320}
+                height={320}
+                className="aspect-square w-full object-cover"
+              />
+            </div>
+          ) : null}
           <h2 className="text-lg font-semibold text-white">Conta</h2>
           <dl className="mt-4 space-y-3 text-sm">
             <div>

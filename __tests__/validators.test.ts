@@ -16,6 +16,17 @@ describe("api validators", () => {
         nome: "Maria",
         email: "maria@empresa.com",
         password: "123",
+        cpf: "123.456.789-10",
+      });
+    });
+  });
+
+  it("requires CPF for user creation", () => {
+    assert.throws(() => {
+      createUserSchema.parse({
+        nome: "Maria",
+        email: "maria@empresa.com",
+        password: "secret1",
       });
     });
   });

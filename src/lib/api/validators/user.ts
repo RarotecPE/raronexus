@@ -9,7 +9,11 @@ export const createUserSchema = z.object({
   nome: z.string().min(2).max(150),
   email: z.email().max(255),
   password: z.string().min(6).max(72),
-  cpf: z.string().max(14).optional().nullable(),
+  cpf: z
+    .string()
+    .min(14, "Informe um CPF completo.")
+    .max(14)
+    .regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "Informe um CPF valido."),
   telefone: z.string().max(20).optional().nullable(),
   avatar_url: z.url().optional().nullable().or(z.literal("")),
   ativo: z.boolean().optional(),

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { BRAND_ICON_URL } from "@/lib/brand";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,6 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "RaroNexus",
   description: "Identity Provider corporativo para multiplos sistemas.",
+  icons: {
+    icon: BRAND_ICON_URL,
+    shortcut: BRAND_ICON_URL,
+    apple: BRAND_ICON_URL,
+  },
 };
 
 export default function RootLayout({

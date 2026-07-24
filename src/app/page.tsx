@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Activity, AppWindow, KeyRound, ShieldCheck, UsersRound } from "lucide-react";
+import { Activity, AppWindow, KeyRound, UsersRound } from "lucide-react";
+import { BrandMark } from "@/components/layout/brand-mark";
 
 const modules = [
   { label: "Autenticacao", value: "Supabase Auth", icon: KeyRound },
@@ -13,15 +14,7 @@ export default function Home() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#0f3b68_0,#020617_38%,#020617_100%)]">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-cyan-400/15 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-cyan-300/30 bg-cyan-400/10 text-cyan-200">
-              <ShieldCheck size={22} aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold text-white">RaroNexus</p>
-              <p className="text-sm text-slate-400">Identity Provider corporativo</p>
-            </div>
-          </div>
+          <BrandMark />
           <nav className="flex items-center gap-2">
             <Link className="btn-secondary" href="/swagger">
               Swagger
