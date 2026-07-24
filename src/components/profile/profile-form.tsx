@@ -1,0 +1,119 @@
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
+import { Save, UserRound } from "lucide-react";
+import { AppShell } from "@/components/layout/app-shell";
+import { apiFetch } from "@/lib/api/client-fetch";
+import type { UserResponseDTO } from "@/lib/api/types";
+
+export function ProfileForm() {
+  const [user, setUser] = useState<UserResponseDTO | null>(null);
+  const [nome, setNome] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiFetch<UserResponseDTO>("/api/v1/users/me")
+      .then((data) => {
+        setUser(data);
+        setNome(data.nome);
+        setTelefone(data.telefone ?? "");
+        setAvatarUrl(data.avatar_url ?? "");
+      })
+      .catch((error) => setMessage(error.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    try {
+      const updated = await apiFetch<UserResponseDTO>("/api/v1/users/me", {
+        method: "PUT",
+        body: JSON.stringify({ nome, telefone, avatar_url: avatarUrl }),
+      });
+      setUser(updated);
+      setMessage("Perfil atualizado com sucesso.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erro ao salvar perfil.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <AppShell title="Perfil">
+      <section className="grid gap-5 lg:grid-cols-[1fr_360px]">
+        <form className="panel p-5" onSubmit={onSubmit}>
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/15 text-cyan-200">
+              <UserRound size={20} aria-hidden="true" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold text-white">Meu perfil</h1>
+              <p className="text-sm text-slate-400">Dados globais da identidade corporativa.</p>
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-slate-300">Carregando perfil...</p>
+          ) : (
+            <div className="grid gap-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="nome">
+                  Nome
+                </label>
+                <input id="nome" className="field" value={nome} onChange={(event) => setNome(event.target.value)} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="telefone">
+                  Telefone
+                </label>
+                <input id="telefone" className="field" value={telefone} onChange={(event) => setTelefone(event.target.value)} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="avatar">
+                  Foto URL
+                </label>
+                <input id="avatar" className="field" value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} />
+              </div>
+              {message ? (
+                <p className="rounded-lg border border-cyan-400/30 bg-cyan-950/40 px-3 py-2 text-sm text-cyan-100">
+                  {message}
+                </p>
+              ) : null}
+              <button className="btn-primary w-fit" type="submit" disabled={saving}>
+                <Save size={17} aria-hidden="true" />
+                {saving ? "Salvando..." : "Salvar alteracoes"}
+              </button>
+            </div>
+          )}
+        </form>
+
+        <aside className="panel h-fit p-5">
+          <h2 className="text-lg font-semibold text-white">Conta</h2>
+          <dl className="mt-4 space-y-3 text-sm">
+            <div>
+              <dt className="text-slate-400">E-mail</dt>
+              <dd className="text-slate-100">{user?.email ?? "-"}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-400">Status</dt>
+              <dd className={user?.ativo ? "text-emerald-300" : "text-rose-300"}>
+                {user?.ativo ? "Ativo" : "Inativo"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-400">Administrador</dt>
+              <dd className="text-slate-100">{user?.is_admin ? "Sim" : "Nao"}</dd>
+            </div>
+          </dl>
+        </aside>
+      </section>
+    </AppShell>
+  );
+}

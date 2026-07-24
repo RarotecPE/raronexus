@@ -1,4 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RaroNexus
+
+Identity Provider corporativo baseado em Next.js, TypeScript, Tailwind CSS e Supabase.
+
+## Recursos
+
+- Login com Supabase Auth, JWT e refresh token.
+- Recuperacao e redefinicao de senha pelo fluxo padrao do Supabase.
+- Perfil do usuario autenticado.
+- Administracao de usuarios com criacao em `auth.users` e dados complementares em `public.users`.
+- API REST versionada em `/api/v1` com DTOs e resposta padronizada.
+- Swagger em `/swagger`.
+- Migrations SQL com RLS para usuarios, aplicacoes, relacao usuario-aplicacao e auditoria.
+- Interface responsiva em modo escuro azul.
+
+## Setup
+
+1. Copie `.env.example` para `.env.local`.
+2. Preencha:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `NEXT_PUBLIC_APP_URL`
+3. Aplique a migration em `supabase/migrations/20260724165000_raronexus_identity.sql` no projeto Supabase.
+4. Crie pelo menos um usuario inicial no Supabase Auth e um registro correspondente em `public.users` com `is_admin = true`.
+
+## Desenvolvimento
+
+```bash
+npm run dev
+```
+
+Rotas principais:
+
+- `/login`
+- `/forgot-password`
+- `/reset-password`
+- `/profile`
+- `/admin/users`
+- `/swagger`
+
+## Qualidade
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
 
 ## Getting Started
 
