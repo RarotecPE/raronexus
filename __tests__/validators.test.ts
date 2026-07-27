@@ -10,14 +10,15 @@ describe("api validators", () => {
     });
   });
 
-  it("rejects short passwords for user creation", () => {
-    assert.throws(() => {
-      createUserSchema.parse({
-        nome: "Maria",
-        email: "maria@empresa.com",
-        password: "123",
-        cpf: "123.456.789-10",
-      });
+  it("accepts user creation without an initial password", () => {
+    assert.deepEqual(createUserSchema.parse({
+      nome: "Maria",
+      email: "maria@empresa.com",
+      cpf: "123.456.789-10",
+    }), {
+      nome: "Maria",
+      email: "maria@empresa.com",
+      cpf: "123.456.789-10",
     });
   });
 
@@ -26,7 +27,6 @@ describe("api validators", () => {
       createUserSchema.parse({
         nome: "Maria",
         email: "maria@empresa.com",
-        password: "secret1",
       });
     });
   });

@@ -5,7 +5,7 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell
       title="Defina uma nova senha"
-      description="Escolha uma senha nova para restaurar o acesso a sua identidade RaroNexus."
+      description="Escolha sua senha para completar o cadastro ou restaurar o acesso a sua identidade RaroNexus."
     >
       <ResetPasswordForm />
     </AuthShell>

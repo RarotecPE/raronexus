@@ -11,7 +11,6 @@ import type { UserResponseDTO } from "@/lib/api/types";
 type DraftUser = {
   nome: string;
   email: string;
-  password: string;
   cpf: string;
   telefone: string;
   avatar_url: string;
@@ -22,7 +21,6 @@ type DraftUser = {
 const emptyDraft: DraftUser = {
   nome: "",
   email: "",
-  password: "",
   cpf: "",
   telefone: "",
   avatar_url: "",
@@ -66,7 +64,6 @@ export function UsersAdmin() {
     setDraft({
       nome: user.nome,
       email: user.email,
-      password: "",
       cpf: user.cpf ?? "",
       telefone: user.telefone ?? "",
       avatar_url: user.avatar_url ?? "",
@@ -121,7 +118,7 @@ export function UsersAdmin() {
           });
         }
 
-        setMessage("Usuario criado.");
+        setMessage("Usuario criado. Enviamos um e-mail para completar o cadastro.");
       }
       resetDraft();
       await loadUsers();
@@ -244,16 +241,15 @@ export function UsersAdmin() {
               <h2 className="text-lg font-semibold text-white">
                 {editing ? "Editar usuario" : "Criar usuario"}
               </h2>
-              <p className="text-sm text-slate-400">Auth + registro complementar.</p>
+              <p className="text-sm text-slate-400">
+                {editing ? "Auth + registro complementar." : "O usuario define a senha por e-mail."}
+              </p>
             </div>
           </div>
 
           <div className="space-y-3">
             <input className="field" placeholder="Nome" value={draft.nome} onChange={(event) => setDraft({ ...draft, nome: event.target.value })} required />
             <input className="field" placeholder="E-mail" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} required disabled={Boolean(editing)} />
-            {!editing ? (
-              <input className="field" placeholder="Senha inicial" type="password" minLength={6} value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} required />
-            ) : null}
             <input
               className="field"
               placeholder="CPF"

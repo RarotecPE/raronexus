@@ -53,18 +53,20 @@ export class UserService {
     return toPublicUserDTO(user);
   }
 
-  async create(context: AuthenticatedContext, input: z.infer<typeof createUserSchema>) {
+  async create(
+    context: AuthenticatedContext,
+    input: z.infer<typeof createUserSchema>,
+    inviteRedirectTo: string,
+  ) {
     this.requireAdmin(context);
 
-    const { data, error } = await this.admin.auth.admin.createUser({
-      email: input.email,
-      password: input.password,
-      email_confirm: true,
-      user_metadata: { nome: input.nome },
+    const { data, error } = await this.admin.auth.admin.inviteUserByEmail(input.email, {
+      data: { nome: input.nome },
+      redirectTo: inviteRedirectTo,
     });
 
     if (error || !data.user) {
-      throw new ApiException(error?.message ?? "Falha ao criar usuario.", "AUTH_CREATE_FAILED", 400);
+      throw new ApiException(error?.message ?? "Falha ao convidar usuario.", "AUTH_INVITE_FAILED", 400);
     }
 
     const user = await this.users.create({
@@ -80,7 +82,7 @@ export class UserService {
 
     await this.audit.log({
       user_id: user.id,
-      event: "criacao_de_usuario",
+      event: "convite_de_usuario",
     });
 
     return toUserDTO(user);

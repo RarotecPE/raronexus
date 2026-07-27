@@ -8,7 +8,6 @@ export const loginSchema = z.object({
 export const createUserSchema = z.object({
   nome: z.string().min(2).max(150),
   email: z.email().max(255),
-  password: z.string().min(6).max(72),
   cpf: z
     .string()
     .min(14, "Informe um CPF completo.")
