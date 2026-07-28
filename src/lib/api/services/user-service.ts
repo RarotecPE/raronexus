@@ -3,6 +3,7 @@ import { toPublicUserDTO, toUserDTO } from "../dto";
 import { ApiException } from "../errors";
 import { AuditRepository } from "../repositories/audit-repository";
 import { UserRepository } from "../repositories/user-repository";
+import { ApplicationService } from "./application-service";
 import type { AuthenticatedContext } from "../types";
 import type { z } from "zod";
 import type { createUserSchema, profileSchema, updateUserSchema } from "../validators/user";
@@ -143,6 +144,11 @@ export class UserService {
     });
 
     await this.audit.log({ user_id: user.id, event: "alteracao_cadastral" });
+
+    if (input.ativo === false) {
+      await new ApplicationService().setUserUnauthorizedEverywhere(user.id);
+    }
+
     return toUserDTO(user);
   }
 

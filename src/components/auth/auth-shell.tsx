@@ -17,9 +17,6 @@ export function AuthShell({
           <Link href="/">
             <BrandMark />
           </Link>
-          <Link href="/swagger" className="btn-secondary">
-            Swagger
-          </Link>
         </header>
         <section className="grid flex-1 items-center gap-8 py-10 lg:grid-cols-[1fr_440px]">
           <div className="max-w-2xl">

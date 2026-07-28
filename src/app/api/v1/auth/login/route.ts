@@ -8,7 +8,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   return handleApi(async () => {
-    rateLimit(request, 8, 60_000);
+    rateLimit(request, 16, 60_000);
     const input = loginSchema.parse(await request.json());
     const data = await new AuthService().login(input.email, input.password);
 

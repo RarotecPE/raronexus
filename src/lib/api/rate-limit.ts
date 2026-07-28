@@ -3,7 +3,7 @@ import { getClientIp } from "./response";
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-export function rateLimit(request: Request, limit = 60, windowMs = 60_000) {
+export function rateLimit(request: Request, limit = 120, windowMs = 60_000) {
   const key = getClientIp(request);
   const now = Date.now();
   const current = buckets.get(key);

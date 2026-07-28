@@ -37,7 +37,8 @@ export function LoginForm() {
       refresh_token: payload.data.refresh_token,
     });
 
-    router.push("/profile");
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/profile");
     router.refresh();
   }
 
