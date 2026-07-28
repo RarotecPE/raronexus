@@ -4,10 +4,10 @@ import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 export default function ResetPasswordPage() {
   return (
     <AuthShell
-      title="Defina uma nova senha"
-      description="Escolha uma senha nova para restaurar o acesso a sua identidade RaroNexus."
+      title="Redefinir senha"
+      description="Escolha uma nova senha para restaurar o acesso a sua identidade RaroNexus."
     >
-      <ResetPasswordForm />
+      <ResetPasswordForm submitLabel="Redefinir senha" />
     </AuthShell>
   );
 }

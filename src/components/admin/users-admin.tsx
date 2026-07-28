@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Power, RefreshCw, Search, Save, ShieldCheck, Upload } from "lucide-react";
+import { MailPlus, Plus, Power, RefreshCw, Search, Save, ShieldCheck, Upload } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { uploadAvatar } from "@/lib/avatar-upload";
 import { apiFetch } from "@/lib/api/client-fetch";
@@ -11,7 +11,6 @@ import type { UserResponseDTO } from "@/lib/api/types";
 type DraftUser = {
   nome: string;
   email: string;
-  password: string;
   cpf: string;
   telefone: string;
   avatar_url: string;
@@ -22,7 +21,6 @@ type DraftUser = {
 const emptyDraft: DraftUser = {
   nome: "",
   email: "",
-  password: "",
   cpf: "",
   telefone: "",
   avatar_url: "",
@@ -39,8 +37,28 @@ export function UsersAdmin() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
 
-  const activeCount = useMemo(() => users.filter((user) => user.ativo).length, [users]);
+  const activeCount = useMemo(
+    () => users.filter((user) => getUserStatus(user) === "ativo").length,
+    [users],
+  );
+
+  function getUserStatus(user: UserResponseDTO) {
+    return user.cadastro_status ?? (user.ativo ? "ativo" : "inativo");
+  }
+
+  function getStatusLabel(user: UserResponseDTO) {
+    const status = getUserStatus(user);
+    if (status === "pendente") return "Pendente";
+    return status === "ativo" ? "Ativo" : "Inativo";
+  }
+
+  function getStatusClassName(user: UserResponseDTO) {
+    const status = getUserStatus(user);
+    if (status === "pendente") return "text-amber-300";
+    return status === "ativo" ? "text-emerald-300" : "text-rose-300";
+  }
 
   const loadUsers = useCallback(async (query = search) => {
     setLoading(true);
@@ -66,7 +84,6 @@ export function UsersAdmin() {
     setDraft({
       nome: user.nome,
       email: user.email,
-      password: "",
       cpf: user.cpf ?? "",
       telefone: user.telefone ?? "",
       avatar_url: user.avatar_url ?? "",
@@ -121,7 +138,7 @@ export function UsersAdmin() {
           });
         }
 
-        setMessage("Usuario criado.");
+        setMessage("Usuario criado. Enviamos um e-mail para completar o cadastro.");
       }
       resetDraft();
       await loadUsers();
@@ -132,14 +149,32 @@ export function UsersAdmin() {
     }
   }
 
-  async function deactivateUser(user: UserResponseDTO) {
+  async function toggleUserStatus(user: UserResponseDTO) {
     setMessage("");
     try {
-      await apiFetch<UserResponseDTO>(`/api/v1/users/${user.id}`, { method: "DELETE" });
-      setMessage("Usuario desativado.");
+      const nextStatus = !user.ativo;
+      await apiFetch<UserResponseDTO>(`/api/v1/users/${user.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ ativo: nextStatus }),
+      });
+      setMessage(nextStatus ? "Usuario ativado." : "Usuario desativado.");
       await loadUsers();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao desativar usuario.");
+      setMessage(error instanceof Error ? error.message : "Erro ao alterar status do usuario.");
+    }
+  }
+
+  async function resendInvite(user: UserResponseDTO) {
+    setMessage("");
+    setResendingInviteId(user.id);
+    try {
+      await apiFetch<UserResponseDTO>(`/api/v1/users/${user.id}/invite`, { method: "POST" });
+      setMessage("E-mail de confirmacao e definicao de senha reenviado.");
+      await loadUsers();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erro ao reenviar e-mail.");
+    } finally {
+      setResendingInviteId(null);
     }
   }
 
@@ -212,17 +247,33 @@ export function UsersAdmin() {
                       <td className="px-5 py-4 font-medium text-white">{user.nome}</td>
                       <td className="px-5 py-4 text-slate-300">{user.email}</td>
                       <td className="px-5 py-4">
-                        <span className={user.ativo ? "text-emerald-300" : "text-rose-300"}>
-                          {user.ativo ? "Ativo" : "Inativo"}
+                        <span className={getStatusClassName(user)}>
+                          {getStatusLabel(user)}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-slate-300">{user.is_admin ? "Sim" : "Nao"}</td>
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-2">
+                          {getUserStatus(user) === "pendente" ? (
+                            <button
+                              className="flex min-h-9 items-center justify-center rounded-md px-2 py-1 text-slate-400 transition hover:bg-slate-800 hover:text-cyan-200 disabled:opacity-50"
+                              type="button"
+                              onClick={() => resendInvite(user)}
+                              disabled={resendingInviteId === user.id}
+                              title="Reenviar e-mail de confirmacao"
+                            >
+                              <MailPlus size={15} aria-hidden="true" />
+                            </button>
+                          ) : null}
                           <button className="btn-secondary min-h-9 px-3 py-1" type="button" onClick={() => startEdit(user)}>
                             Editar
                           </button>
-                          <button className="btn-secondary min-h-9 px-3 py-1" type="button" onClick={() => deactivateUser(user)}>
+                          <button
+                            className="btn-secondary min-h-9 px-3 py-1"
+                            type="button"
+                            onClick={() => toggleUserStatus(user)}
+                            title={user.ativo ? "Desativar usuario" : "Ativar usuario"}
+                          >
                             <Power size={15} aria-hidden="true" />
                           </button>
                         </div>
@@ -244,16 +295,15 @@ export function UsersAdmin() {
               <h2 className="text-lg font-semibold text-white">
                 {editing ? "Editar usuario" : "Criar usuario"}
               </h2>
-              <p className="text-sm text-slate-400">Auth + registro complementar.</p>
+              <p className="text-sm text-slate-400">
+                {editing ? "Auth + registro complementar." : "O usuario define a senha por e-mail."}
+              </p>
             </div>
           </div>
 
           <div className="space-y-3">
             <input className="field" placeholder="Nome" value={draft.nome} onChange={(event) => setDraft({ ...draft, nome: event.target.value })} required />
             <input className="field" placeholder="E-mail" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} required disabled={Boolean(editing)} />
-            {!editing ? (
-              <input className="field" placeholder="Senha inicial" type="password" minLength={6} value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} required />
-            ) : null}
             <input
               className="field"
               placeholder="CPF"

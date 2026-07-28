@@ -30,6 +30,7 @@ export const openApiSpec = {
           nome: { type: "string" },
           email: { type: "string", format: "email" },
           ativo: { type: "boolean" },
+          cadastro_status: { type: "string", enum: ["ativo", "inativo", "pendente"] },
         },
       },
     },
@@ -94,9 +95,29 @@ export const openApiSpec = {
         responses: { "200": { description: "Lista de usuarios" } },
       },
       post: {
-        summary: "Criar usuario",
+        summary: "Criar usuario e enviar convite de cadastro",
         tags: ["Users"],
         security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["nome", "email", "cpf"],
+                properties: {
+                  nome: { type: "string" },
+                  email: { type: "string", format: "email" },
+                  cpf: { type: "string" },
+                  telefone: { type: "string" },
+                  avatar_url: { type: "string", format: "uri" },
+                  ativo: { type: "boolean" },
+                  is_admin: { type: "boolean" },
+                },
+              },
+            },
+          },
+        },
         responses: { "201": { description: "Usuario criado" } },
       },
     },
@@ -121,6 +142,18 @@ export const openApiSpec = {
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
         responses: { "200": { description: "Usuario desativado" } },
+      },
+    },
+    "/users/{id}/invite": {
+      post: {
+        summary: "Reenviar convite de cadastro pendente",
+        tags: ["Users"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Convite reenviado" },
+          "409": { description: "Cadastro ja confirmado" },
+        },
       },
     },
     "/applications/{applicationId}/access": {

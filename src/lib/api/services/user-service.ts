@@ -18,6 +18,24 @@ export class UserService {
     }
   }
 
+  private getInviteRedirectTo(requestUrl: string) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(requestUrl).origin;
+    return `${appUrl.replace(/\/$/, "")}/set-password`;
+  }
+
+  private async getCadastroStatus(user: { auth_user_id: string; ativo: boolean }) {
+    const { data, error } = await this.admin.auth.admin.getUserById(user.auth_user_id);
+    if (error || !data.user) {
+      throw new ApiException(error?.message ?? "Usuario de autenticacao nao encontrado.", "AUTH_USER_NOT_FOUND", 404);
+    }
+
+    if (!data.user.email_confirmed_at && !data.user.confirmed_at) {
+      return "pendente" as const;
+    }
+
+    return user.ativo ? "ativo" as const : "inativo" as const;
+  }
+
   async me(context: AuthenticatedContext) {
     if (!context.profile) {
       throw new ApiException("Perfil complementar nao encontrado.", "PROFILE_NOT_FOUND", 404);
@@ -43,7 +61,7 @@ export class UserService {
   async list(context: AuthenticatedContext, search?: string) {
     this.requireAdmin(context);
     const users = await this.users.list(search);
-    return users.map(toUserDTO);
+    return Promise.all(users.map(async (user) => toUserDTO(user, await this.getCadastroStatus(user))));
   }
 
   async find(context: AuthenticatedContext, id: string) {
@@ -53,18 +71,21 @@ export class UserService {
     return toPublicUserDTO(user);
   }
 
-  async create(context: AuthenticatedContext, input: z.infer<typeof createUserSchema>) {
+  async create(
+    context: AuthenticatedContext,
+    input: z.infer<typeof createUserSchema>,
+    requestUrl: string,
+  ) {
     this.requireAdmin(context);
+    const inviteRedirectTo = this.getInviteRedirectTo(requestUrl);
 
-    const { data, error } = await this.admin.auth.admin.createUser({
-      email: input.email,
-      password: input.password,
-      email_confirm: true,
-      user_metadata: { nome: input.nome },
+    const { data, error } = await this.admin.auth.admin.inviteUserByEmail(input.email, {
+      data: { nome: input.nome },
+      redirectTo: inviteRedirectTo,
     });
 
     if (error || !data.user) {
-      throw new ApiException(error?.message ?? "Falha ao criar usuario.", "AUTH_CREATE_FAILED", 400);
+      throw new ApiException(error?.message ?? "Falha ao convidar usuario.", "AUTH_INVITE_FAILED", 400);
     }
 
     const user = await this.users.create({
@@ -80,10 +101,37 @@ export class UserService {
 
     await this.audit.log({
       user_id: user.id,
-      event: "criacao_de_usuario",
+      event: "convite_de_usuario",
     });
 
     return toUserDTO(user);
+  }
+
+  async resendInvite(context: AuthenticatedContext, id: string, requestUrl: string) {
+    this.requireAdmin(context);
+    const user = await this.users.findById(id);
+    if (!user) throw new ApiException("Usuario nao encontrado.", "USER_NOT_FOUND", 404);
+
+    const cadastroStatus = await this.getCadastroStatus(user);
+    if (cadastroStatus !== "pendente") {
+      throw new ApiException("Cadastro ja confirmado.", "USER_ALREADY_CONFIRMED", 409);
+    }
+
+    const { error } = await this.admin.auth.admin.inviteUserByEmail(user.email, {
+      data: { nome: user.nome },
+      redirectTo: this.getInviteRedirectTo(requestUrl),
+    });
+
+    if (error) {
+      throw new ApiException(error.message, "AUTH_INVITE_RESEND_FAILED", 400);
+    }
+
+    await this.audit.log({
+      user_id: user.id,
+      event: "reenvio_convite_usuario",
+    });
+
+    return toUserDTO(user, "pendente");
   }
 
   async update(context: AuthenticatedContext, id: string, input: z.infer<typeof updateUserSchema>) {

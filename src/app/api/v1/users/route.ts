@@ -19,6 +19,6 @@ export async function POST(request: Request) {
     rateLimit(request, 20, 60_000);
     const context = await new AuthService().authenticate(request);
     const input = createUserSchema.parse(await request.json());
-    return ok(await new UserService().create(context, input), { status: 201 });
+    return ok(await new UserService().create(context, input, request.url), { status: 201 });
   });
 }

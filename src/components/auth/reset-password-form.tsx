@@ -2,9 +2,19 @@
 
 import { FormEvent, useState } from "react";
 import { KeyRound } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-export function ResetPasswordForm() {
+type ResetPasswordFormProps = {
+  submitLabel?: string;
+  successMessage?: string;
+};
+
+export function ResetPasswordForm({
+  submitLabel = "Atualizar senha",
+  successMessage = "Senha atualizada com sucesso.",
+}: ResetPasswordFormProps) {
+  const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
@@ -20,8 +30,15 @@ export function ResetPasswordForm() {
     setLoading(true);
     const supabase = createBrowserSupabaseClient();
     const { error } = await supabase.auth.updateUser({ password });
-    setMessage(error ? error.message : "Senha atualizada com sucesso.");
+    if (error) {
+      setMessage(error.message);
+      setLoading(false);
+      return;
+    }
+
+    setMessage(successMessage);
     setLoading(false);
+    router.replace("/login");
   }
 
   return (
@@ -63,7 +80,7 @@ export function ResetPasswordForm() {
       ) : null}
       <button className="btn-primary w-full" disabled={loading} type="submit">
         <KeyRound size={17} aria-hidden="true" />
-        {loading ? "Salvando..." : "Atualizar senha"}
+        {loading ? "Salvando..." : submitLabel}
       </button>
     </form>
   );
