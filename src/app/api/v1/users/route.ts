@@ -19,8 +19,6 @@ export async function POST(request: Request) {
     rateLimit(request, 20, 60_000);
     const context = await new AuthService().authenticate(request);
     const input = createUserSchema.parse(await request.json());
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
-    const inviteRedirectTo = `${appUrl.replace(/\/$/, "")}/reset-password`;
-    return ok(await new UserService().create(context, input, inviteRedirectTo), { status: 201 });
+    return ok(await new UserService().create(context, input, request.url), { status: 201 });
   });
 }

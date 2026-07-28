@@ -41,6 +41,7 @@ export type UserResponseDTO = {
   telefone?: string | null;
   avatar_url?: string | null;
   ativo: boolean;
+  cadastro_status?: "ativo" | "inativo" | "pendente";
   is_admin?: boolean;
   created_at?: string;
   updated_at?: string;

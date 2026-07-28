@@ -30,6 +30,7 @@ export const openApiSpec = {
           nome: { type: "string" },
           email: { type: "string", format: "email" },
           ativo: { type: "boolean" },
+          cadastro_status: { type: "string", enum: ["ativo", "inativo", "pendente"] },
         },
       },
     },
@@ -141,6 +142,18 @@ export const openApiSpec = {
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
         responses: { "200": { description: "Usuario desativado" } },
+      },
+    },
+    "/users/{id}/invite": {
+      post: {
+        summary: "Reenviar convite de cadastro pendente",
+        tags: ["Users"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Convite reenviado" },
+          "409": { description: "Cadastro ja confirmado" },
+        },
       },
     },
     "/applications/{applicationId}/access": {
