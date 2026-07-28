@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   return handleApi(async () => {
-    rateLimit(request, 20, 60_000);
+    rateLimit(request, 40, 60_000);
     const context = await new AuthService().authenticate(request);
     const input = profileSchema.parse(await request.json());
     return ok(await new UserService().updateMe(context, input));

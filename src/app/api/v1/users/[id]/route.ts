@@ -20,7 +20,7 @@ export async function GET(request: Request, { params }: Params) {
 
 export async function PUT(request: Request, { params }: Params) {
   return handleApi(async () => {
-    rateLimit(request, 20, 60_000);
+    rateLimit(request, 40, 60_000);
     const { id } = await params;
     const context = await new AuthService().authenticate(request);
     const input = updateUserSchema.parse(await request.json());
@@ -30,7 +30,7 @@ export async function PUT(request: Request, { params }: Params) {
 
 export async function DELETE(request: Request, { params }: Params) {
   return handleApi(async () => {
-    rateLimit(request, 20, 60_000);
+    rateLimit(request, 40, 60_000);
     const { id } = await params;
     const context = await new AuthService().authenticate(request);
     return ok(await new UserService().deactivate(context, id));

@@ -16,9 +16,6 @@ export default function Home() {
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-cyan-400/15 pb-5">
           <BrandMark />
           <nav className="flex items-center gap-2">
-            <Link className="btn-secondary" href="/swagger">
-              Swagger
-            </Link>
             <Link className="btn-primary" href="/login">
               Entrar
             </Link>

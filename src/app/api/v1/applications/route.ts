@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return handleApi(async () => {
-    rateLimit(request, 20, 60_000);
+    rateLimit(request, 40, 60_000);
     const context = await new AuthService().authenticate(request);
     const input = createApplicationSchema.parse(await request.json());
     return ok(await new ApplicationService().create(context, input), { status: 201 });

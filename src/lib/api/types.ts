@@ -58,6 +58,18 @@ export type UserApplicationRow = {
   updated_at?: string;
 };
 
+export type SsoAuthorizationCodeRow = {
+  id: string;
+  code_hash: string;
+  application_id: string;
+  user_id: string;
+  role_id: string;
+  redirect_uri: string;
+  expires_at: string;
+  consumed_at?: string | null;
+  created_at?: string;
+};
+
 export type ApplicationRoleDTO = {
   id: string;
   nome: string;
