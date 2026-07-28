@@ -1,4 +1,5 @@
 import type {
+  ApplicationAccessSummaryDTO,
   ApplicationResponseDTO,
   ApplicationRoleDTO,
   ApplicationRoleRow,
@@ -48,7 +49,11 @@ export function toApplicationRoleDTO(role: ApplicationRoleRow): ApplicationRoleD
 export function toApplicationDTO(
   application: ApplicationRow,
   roles: ApplicationRoleRow[] = [],
-  options: { includeSecret?: boolean; userRole?: ApplicationRoleRow | null } = {},
+  options: {
+    includeSecret?: boolean;
+    userRole?: ApplicationRoleRow | null;
+    accessSummary?: ApplicationAccessSummaryDTO;
+  } = {},
 ): ApplicationResponseDTO {
   return {
     id: application.id,
@@ -62,6 +67,7 @@ export function toApplicationDTO(
     ativo: application.ativo,
     roles: roles.map(toApplicationRoleDTO),
     user_role: options.userRole ? toApplicationRoleDTO(options.userRole) : null,
+    ...(options.accessSummary ? { access_summary: options.accessSummary } : {}),
     created_at: application.created_at,
     updated_at: application.updated_at,
   };

@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
 import { apiFetch } from "@/lib/api/client-fetch";
 import type {
   ApplicationAssignmentDTO,
@@ -41,6 +42,7 @@ type DraftApplication = {
 };
 
 type ModalMode = "edit" | "profiles" | "users" | null;
+type AlertState = { message: string; type: SystemAlertType } | null;
 
 const emptyApplicationDraft: DraftApplication = {
   nome: "",
@@ -148,7 +150,7 @@ export function ApplicationsAdmin() {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [userSearch, setUserSearch] = useState("");
   const [bulkProfileId, setBulkProfileId] = useState("");
-  const [message, setMessage] = useState("");
+  const [alert, setAlert] = useState<AlertState>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
@@ -161,7 +163,6 @@ export function ApplicationsAdmin() {
 
   const loadApplications = useCallback(async () => {
     setLoading(true);
-    setMessage("");
     try {
       const [profile, apps] = await Promise.all([
         apiFetch<UserResponseDTO>("/api/v1/users/me"),
@@ -170,7 +171,10 @@ export function ApplicationsAdmin() {
       setMe(profile);
       setApplications(apps);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao carregar plataformas.");
+      setAlert({
+        message: error instanceof Error ? error.message : "Erro ao carregar plataformas.",
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -223,7 +227,7 @@ export function ApplicationsAdmin() {
     setBulkProfileId("");
     setModalMode("users");
     setLoadingAssignments(true);
-    setMessage("");
+    setAlert(null);
     try {
       const data = await apiFetch<ApplicationAssignmentDTO[]>(
         `/api/v1/applications/${application.id}/assignments`,
@@ -231,7 +235,10 @@ export function ApplicationsAdmin() {
       setAssignments(data);
       setAssignmentDraft(Object.fromEntries(data.map((item) => [item.user_id, item.role_id ?? ""])));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao carregar usuarios.");
+      setAlert({
+        message: error instanceof Error ? error.message : "Erro ao carregar usuarios.",
+        type: "error",
+      });
     } finally {
       setLoadingAssignments(false);
     }
@@ -277,7 +284,7 @@ export function ApplicationsAdmin() {
   async function saveApplication(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
-    setMessage("");
+    setAlert(null);
     try {
       const payload = buildApplicationPayload();
       const saved = activeApplication
@@ -290,12 +297,18 @@ export function ApplicationsAdmin() {
           body: JSON.stringify(payload),
         });
 
-      setMessage(activeApplication ? "Plataforma atualizada." : "Plataforma cadastrada.");
+      setAlert({
+        message: activeApplication ? "Plataforma atualizada." : "Plataforma cadastrada.",
+        type: "success",
+      });
       await loadApplications();
       closeModal();
       setActiveApplication(saved);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao salvar plataforma.");
+      setAlert({
+        message: error instanceof Error ? error.message : "Erro ao salvar plataforma.",
+        type: "error",
+      });
     } finally {
       setSaving(false);
     }
@@ -305,18 +318,21 @@ export function ApplicationsAdmin() {
     event.preventDefault();
     if (!activeApplication) return;
     setSaving(true);
-    setMessage("");
+    setAlert(null);
     try {
       const saved = await apiFetch<ApplicationResponseDTO>(`/api/v1/applications/${activeApplication.id}`, {
         method: "PUT",
         body: JSON.stringify(buildApplicationPayload(profileDrafts)),
       });
-      setMessage("Perfis de usuarios atualizados.");
+      setAlert({ message: "Perfis de usuarios atualizados.", type: "success" });
       await loadApplications();
       closeModal();
       setActiveApplication(saved);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao salvar perfis de usuarios.");
+      setAlert({
+        message: error instanceof Error ? error.message : "Erro ao salvar perfis de usuarios.",
+        type: "error",
+      });
     } finally {
       setSaving(false);
     }
@@ -325,7 +341,7 @@ export function ApplicationsAdmin() {
   async function saveAssignments() {
     if (!activeApplication) return;
     setSaving(true);
-    setMessage("");
+    setAlert(null);
     try {
       const updated = await apiFetch<ApplicationAssignmentDTO[]>(
         `/api/v1/applications/${activeApplication.id}/assignments`,
@@ -340,11 +356,14 @@ export function ApplicationsAdmin() {
         },
       );
       setAssignments(updated);
-      setMessage("Acessos atualizados.");
+      setAlert({ message: "Acessos atualizados.", type: "success" });
       await loadApplications();
       closeModal();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao salvar acessos.");
+      setAlert({
+        message: error instanceof Error ? error.message : "Erro ao salvar acessos.",
+        type: "error",
+      });
     } finally {
       setSaving(false);
     }
@@ -357,6 +376,20 @@ export function ApplicationsAdmin() {
         next.delete(userId);
       } else {
         next.add(userId);
+      }
+      return next;
+    });
+  }
+
+  function toggleFilteredUsersSelection(userIds: string[], checked: boolean) {
+    setSelectedUsers((current) => {
+      const next = new Set(current);
+      for (const userId of userIds) {
+        if (checked) {
+          next.add(userId);
+        } else {
+          next.delete(userId);
+        }
       }
       return next;
     });
@@ -389,8 +422,23 @@ export function ApplicationsAdmin() {
     });
   }, [assignments, userSearch]);
 
+  const filteredUserIds = useMemo(
+    () => filteredAssignments.map((assignment) => assignment.user_id),
+    [filteredAssignments],
+  );
+  const allFilteredUsersSelected = filteredUserIds.length > 0
+    && filteredUserIds.every((userId) => selectedUsers.has(userId));
+
   return (
     <AppShell title="Plataformas">
+      {alert ? (
+        <SystemAlert
+          message={alert.message}
+          type={alert.type}
+          onClose={() => setAlert(null)}
+        />
+      ) : null}
+
       <section className="panel overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/70 p-5">
           <div>
@@ -411,12 +459,6 @@ export function ApplicationsAdmin() {
             ) : null}
           </div>
         </div>
-
-        {message ? (
-          <p className="mx-5 mt-5 rounded-lg border border-cyan-400/30 bg-cyan-950/40 px-3 py-2 text-sm text-cyan-100">
-            {message}
-          </p>
-        ) : null}
 
         <div className="grid gap-3 p-5">
           {loading ? (
@@ -458,9 +500,26 @@ export function ApplicationsAdmin() {
                       <span className="rounded-md border border-slate-700 px-2 py-1">
                         {editableProfiles(application.roles).length} perfis de usuarios
                       </span>
+                      <span className="rounded-md border border-emerald-400/25 bg-emerald-950/25 px-2 py-1 text-emerald-100">
+                        {application.access_summary?.authorized_total ?? 0} usuarios ativos
+                      </span>
                     </>
                   ) : null}
                 </div>
+
+                {isAdmin ? (
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300">
+                    {application.access_summary?.by_profile.length ? (
+                      application.access_summary.by_profile.map((profile) => (
+                        <span key={profile.role_id} className="rounded-md border border-slate-700 bg-slate-950/50 px-2 py-1">
+                          {profile.role_nome}: {profile.total}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-slate-500">Nenhum usuario autorizado.</span>
+                    )}
+                  </div>
+                ) : null}
 
                 {isAdmin ? (
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -602,6 +661,16 @@ export function ApplicationsAdmin() {
                 Aplicar aos selecionados
               </button>
             </div>
+
+            <label className="flex w-fit items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={allFilteredUsersSelected}
+                onChange={(event) => toggleFilteredUsersSelection(filteredUserIds, event.target.checked)}
+                disabled={filteredUserIds.length === 0}
+              />
+              Selecionar todos
+            </label>
 
             {loadingAssignments ? (
               <p className="text-sm text-slate-300">Carregando usuarios...</p>

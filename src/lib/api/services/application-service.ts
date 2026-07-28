@@ -1,14 +1,21 @@
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import crypto from "node:crypto";
-import { toApplicationDTO } from "../dto";
+import { toApplicationDTO, toApplicationRoleDTO } from "../dto";
 import { ApiException } from "../errors";
 import { ApplicationRepository } from "../repositories/application-repository";
 import { UserRepository } from "../repositories/user-repository";
-import type { ApplicationAssignmentDTO, ApplicationRoleRow, AuthenticatedContext } from "../types";
+import type {
+  ApplicationAccessSummaryDTO,
+  ApplicationAssignmentDTO,
+  ApplicationRoleRow,
+  AuthenticatedContext,
+  UserApplicationAccessDTO,
+} from "../types";
 import type { z } from "zod";
 import type {
   createApplicationSchema,
   updateApplicationAssignmentsSchema,
+  updateUserApplicationAssignmentsSchema,
   updateApplicationSchema,
 } from "../validators/application";
 
@@ -68,6 +75,35 @@ export class ApplicationService {
     return savedRoles;
   }
 
+  private buildAccessSummary(
+    assignments: Awaited<ReturnType<ApplicationRepository["listAssignments"]>>,
+  ): ApplicationAccessSummaryDTO {
+    const byProfile = new Map<string, ApplicationAccessSummaryDTO["by_profile"][number]>();
+
+    for (const assignment of assignments) {
+      const role = assignment.application_roles;
+      if (!assignment.ativo || !role?.ativo || role.chave === UNAUTHORIZED_ROLE.chave) continue;
+
+      const current = byProfile.get(role.id) ?? {
+        role_id: role.id,
+        role_chave: role.chave,
+        role_nome: role.nome,
+        total: 0,
+      };
+      current.total += 1;
+      byProfile.set(role.id, current);
+    }
+
+    const by_profile = Array.from(byProfile.values()).sort((left, right) => (
+      left.role_nome.localeCompare(right.role_nome)
+    ));
+
+    return {
+      authorized_total: by_profile.reduce((total, profile) => total + profile.total, 0),
+      by_profile,
+    };
+  }
+
   async list(context: AuthenticatedContext) {
     if (!context.profile) {
       throw new ApiException("Perfil complementar nao encontrado.", "PROFILE_NOT_FOUND", 404);
@@ -75,9 +111,17 @@ export class ApplicationService {
 
     if (context.profile.is_admin) {
       const applications = await this.repository.listAll();
-      return Promise.all(applications.map(async (application) => (
-        toApplicationDTO(application, await this.repository.listRoles(application.id), { includeSecret: true })
-      )));
+      return Promise.all(applications.map(async (application) => {
+        const [roles, assignments] = await Promise.all([
+          this.repository.listRoles(application.id),
+          this.repository.listAssignments(application.id),
+        ]);
+
+        return toApplicationDTO(application, roles, {
+          includeSecret: true,
+          accessSummary: this.buildAccessSummary(assignments),
+        });
+      }));
     }
 
     const assignments = await this.repository.listForUser(context.profile.id);
@@ -173,6 +217,82 @@ export class ApplicationService {
     }
 
     return this.listAssignments(context, applicationId);
+  }
+
+  async listUserApplications(context: AuthenticatedContext, userId: string): Promise<UserApplicationAccessDTO[]> {
+    this.requireAdmin(context);
+    const user = await this.users.findById(userId);
+    if (!user) throw new ApiException("Usuario nao encontrado.", "USER_NOT_FOUND", 404);
+
+    const applications = await this.repository.listAll();
+
+    return Promise.all(applications.map(async (application) => {
+      const [roles, assignments] = await Promise.all([
+        this.repository.listRoles(application.id),
+        this.repository.listAssignments(application.id),
+      ]);
+      const unauthorized = roles.find((role) => role.chave === UNAUTHORIZED_ROLE.chave)
+        ?? await this.ensureUnauthorizedRole(application.id);
+      const assignment = assignments.find((item) => item.user_id === userId);
+      const role = assignment?.ativo
+        ? roles.find((item) => item.id === assignment.role_id) ?? unauthorized
+        : unauthorized;
+
+      return {
+        application_id: application.id,
+        application_nome: application.nome,
+        application_client_id: application.client_id,
+        application_ativo: application.ativo,
+        role_id: role.chave === UNAUTHORIZED_ROLE.chave ? null : role.id,
+        role_chave: role.chave,
+        role_nome: role.nome,
+        roles: roles.map(toApplicationRoleDTO),
+      };
+    }));
+  }
+
+  async updateUserApplications(
+    context: AuthenticatedContext,
+    userId: string,
+    input: z.infer<typeof updateUserApplicationAssignmentsSchema>,
+  ) {
+    this.requireAdmin(context);
+    const user = await this.users.findById(userId);
+    if (!user) throw new ApiException("Usuario nao encontrado.", "USER_NOT_FOUND", 404);
+
+    for (const assignment of input.assignments) {
+      const application = await this.repository.findById(assignment.application_id);
+      if (!application) throw new ApiException("Aplicacao nao encontrada.", "APPLICATION_NOT_FOUND", 404);
+
+      const roles = await this.repository.listRoles(application.id);
+      const unauthorized = roles.find((role) => role.chave === UNAUTHORIZED_ROLE.chave)
+        ?? await this.ensureUnauthorizedRole(application.id);
+      const role = assignment.role_id
+        ? roles.find((item) => item.id === assignment.role_id)
+        : unauthorized;
+
+      if (!role) {
+        throw new ApiException("Perfil de usuario invalido para esta plataforma.", "ROLE_NOT_FOUND", 404);
+      }
+
+      await this.repository.upsertAssignment(
+        userId,
+        application.id,
+        role.id,
+        role.chave !== UNAUTHORIZED_ROLE.chave,
+      );
+    }
+
+    return this.listUserApplications(context, userId);
+  }
+
+  async setUserUnauthorizedEverywhere(userId: string) {
+    const applications = await this.repository.listAll();
+
+    for (const application of applications) {
+      const unauthorized = await this.ensureUnauthorizedRole(application.id);
+      await this.repository.upsertAssignment(userId, application.id, unauthorized.id, false);
+    }
   }
 
   async checkAccess(context: AuthenticatedContext, applicationId: string) {
