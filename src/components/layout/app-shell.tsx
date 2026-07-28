@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, UserRound, UsersRound } from "lucide-react";
+import { AppWindow, LogOut, UserRound, UsersRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { BrandMark } from "@/components/layout/brand-mark";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -33,6 +33,10 @@ export function AppShell({
             <Link className="btn-secondary" href="/profile">
               <UserRound size={16} aria-hidden="true" />
               Perfil
+            </Link>
+            <Link className="btn-secondary" href="/applications">
+              <AppWindow size={16} aria-hidden="true" />
+              Plataformas
             </Link>
             <Link className="btn-secondary" href="/admin/users">
               <UsersRound size={16} aria-hidden="true" />
