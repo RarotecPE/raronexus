@@ -90,8 +90,19 @@ export type ApplicationResponseDTO = {
   ativo: boolean;
   roles?: ApplicationRoleDTO[];
   user_role?: ApplicationRoleDTO | null;
+  access_summary?: ApplicationAccessSummaryDTO;
   created_at?: string;
   updated_at?: string;
+};
+
+export type ApplicationAccessSummaryDTO = {
+  authorized_total: number;
+  by_profile: Array<{
+    role_id: string;
+    role_chave: string;
+    role_nome: string;
+    total: number;
+  }>;
 };
 
 export type ApplicationAssignmentDTO = {
@@ -101,6 +112,17 @@ export type ApplicationAssignmentDTO = {
   role_id: string | null;
   role_chave: string;
   role_nome: string;
+};
+
+export type UserApplicationAccessDTO = {
+  application_id: string;
+  application_nome: string;
+  application_client_id: string;
+  application_ativo: boolean;
+  role_id: string | null;
+  role_chave: string;
+  role_nome: string;
+  roles: ApplicationRoleDTO[];
 };
 
 export type UserResponseDTO = {

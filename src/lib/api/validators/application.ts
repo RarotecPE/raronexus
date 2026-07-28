@@ -31,3 +31,10 @@ export const updateApplicationAssignmentsSchema = z.object({
     role_id: z.uuid().nullable(),
   })),
 });
+
+export const updateUserApplicationAssignmentsSchema = z.object({
+  assignments: z.array(z.object({
+    application_id: z.uuid(),
+    role_id: z.uuid().nullable(),
+  })),
+});
