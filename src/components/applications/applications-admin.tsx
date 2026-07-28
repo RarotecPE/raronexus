@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AppWindow,
+  Edit3,
   ExternalLink,
   KeyRound,
   Plus,
@@ -10,6 +11,7 @@ import {
   Save,
   ShieldCheck,
   UsersRound,
+  X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { apiFetch } from "@/lib/api/client-fetch";
@@ -20,7 +22,7 @@ import type {
   UserResponseDTO,
 } from "@/lib/api/types";
 
-type DraftRole = {
+type DraftProfile = {
   id?: string;
   nome: string;
   chave: string;
@@ -36,10 +38,11 @@ type DraftApplication = {
   redirect_uris: string;
   allowed_origins: string;
   ativo: boolean;
-  roles: DraftRole[];
 };
 
-const emptyDraft: DraftApplication = {
+type ModalMode = "edit" | "profiles" | "users" | null;
+
+const emptyApplicationDraft: DraftApplication = {
   nome: "",
   descricao: "",
   client_id: "",
@@ -47,7 +50,6 @@ const emptyDraft: DraftApplication = {
   redirect_uris: "",
   allowed_origins: "",
   ativo: true,
-  roles: [],
 };
 
 function slugify(value: string) {
@@ -70,21 +72,86 @@ function arrayToLines(value?: string[]) {
   return value?.join("\n") ?? "";
 }
 
-function editableRoles(roles?: ApplicationRoleDTO[]) {
-  return roles?.filter((role) => role.chave !== "nao_autorizado") ?? [];
+function editableProfiles(profiles?: ApplicationRoleDTO[]) {
+  return profiles?.filter((profile) => profile.chave !== "nao_autorizado") ?? [];
+}
+
+function profilesToDraft(profiles?: ApplicationRoleDTO[]): DraftProfile[] {
+  return editableProfiles(profiles).map((profile) => ({
+    id: profile.id,
+    nome: profile.nome,
+    chave: profile.chave,
+    descricao: profile.descricao ?? "",
+    ativo: profile.ativo,
+  }));
+}
+
+function applicationToDraft(application: ApplicationResponseDTO): DraftApplication {
+  return {
+    nome: application.nome,
+    descricao: application.descricao ?? "",
+    client_id: application.client_id,
+    homepage_url: application.homepage_url ?? "",
+    redirect_uris: arrayToLines(application.redirect_uris),
+    allowed_origins: arrayToLines(application.allowed_origins),
+    ativo: application.ativo,
+  };
+}
+
+function Modal({
+  title,
+  description,
+  icon,
+  children,
+  onClose,
+  maxWidth = "max-w-3xl",
+}: {
+  title: string;
+  description?: string;
+  icon: ReactNode;
+  children: ReactNode;
+  onClose: () => void;
+  maxWidth?: string;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm">
+      <section className={`panel max-h-[90vh] w-full ${maxWidth} overflow-y-auto p-5 shadow-2xl shadow-cyan-950/40`}>
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/15 text-cyan-200">
+              {icon}
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">{title}</h2>
+              {description ? <p className="text-sm text-slate-400">{description}</p> : null}
+            </div>
+          </div>
+          <button className="btn-secondary min-h-9 px-3 py-2" type="button" onClick={onClose} title="Fechar">
+            <X size={16} aria-hidden="true" />
+          </button>
+        </div>
+        {children}
+      </section>
+    </div>
+  );
 }
 
 export function ApplicationsAdmin() {
   const [me, setMe] = useState<UserResponseDTO | null>(null);
   const [applications, setApplications] = useState<ApplicationResponseDTO[]>([]);
-  const [selected, setSelected] = useState<ApplicationResponseDTO | null>(null);
-  const [draft, setDraft] = useState<DraftApplication>(emptyDraft);
+  const [activeApplication, setActiveApplication] = useState<ApplicationResponseDTO | null>(null);
+  const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [applicationDraft, setApplicationDraft] = useState<DraftApplication>(emptyApplicationDraft);
+  const [profileDrafts, setProfileDrafts] = useState<DraftProfile[]>([]);
   const [assignments, setAssignments] = useState<ApplicationAssignmentDTO[]>([]);
   const [assignmentDraft, setAssignmentDraft] = useState<Record<string, string>>({});
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [userSearch, setUserSearch] = useState("");
+  const [bulkProfileId, setBulkProfileId] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [savingAssignments, setSavingAssignments] = useState(false);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
 
   const isAdmin = Boolean(me?.is_admin);
   const activeCount = useMemo(
@@ -115,67 +182,96 @@ export function ApplicationsAdmin() {
     });
   }, [loadApplications]);
 
-  function resetDraft() {
-    setSelected(null);
-    setDraft(emptyDraft);
+  function closeModal() {
+    setModalMode(null);
+    setActiveApplication(null);
+    setApplicationDraft(emptyApplicationDraft);
+    setProfileDrafts([]);
     setAssignments([]);
     setAssignmentDraft({});
+    setSelectedUsers(new Set());
+    setUserSearch("");
+    setBulkProfileId("");
+    setSaving(false);
   }
 
-  async function selectApplication(application: ApplicationResponseDTO) {
-    setSelected(application);
-    setDraft({
-      nome: application.nome,
-      descricao: application.descricao ?? "",
-      client_id: application.client_id,
-      homepage_url: application.homepage_url ?? "",
-      redirect_uris: arrayToLines(application.redirect_uris),
-      allowed_origins: arrayToLines(application.allowed_origins),
-      ativo: application.ativo,
-      roles: editableRoles(application.roles).map((role) => ({
-        id: role.id,
-        nome: role.nome,
-        chave: role.chave,
-        descricao: role.descricao ?? "",
-        ativo: role.ativo,
-      })),
-    });
+  function openCreateModal() {
+    setActiveApplication(null);
+    setApplicationDraft(emptyApplicationDraft);
+    setModalMode("edit");
+  }
 
-    if (isAdmin) {
-      try {
-        const data = await apiFetch<ApplicationAssignmentDTO[]>(
-          `/api/v1/applications/${application.id}/assignments`,
-        );
-        setAssignments(data);
-        setAssignmentDraft(Object.fromEntries(data.map((item) => [item.user_id, item.role_id ?? ""])));
-      } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Erro ao carregar acessos.");
-      }
+  function openEditModal(application: ApplicationResponseDTO) {
+    setActiveApplication(application);
+    setApplicationDraft(applicationToDraft(application));
+    setModalMode("edit");
+  }
+
+  function openProfilesModal(application: ApplicationResponseDTO) {
+    setActiveApplication(application);
+    setApplicationDraft(applicationToDraft(application));
+    setProfileDrafts(profilesToDraft(application.roles));
+    setModalMode("profiles");
+  }
+
+  async function openUsersModal(application: ApplicationResponseDTO) {
+    setActiveApplication(application);
+    setAssignments([]);
+    setAssignmentDraft({});
+    setSelectedUsers(new Set());
+    setUserSearch("");
+    setBulkProfileId("");
+    setModalMode("users");
+    setLoadingAssignments(true);
+    setMessage("");
+    try {
+      const data = await apiFetch<ApplicationAssignmentDTO[]>(
+        `/api/v1/applications/${application.id}/assignments`,
+      );
+      setAssignments(data);
+      setAssignmentDraft(Object.fromEntries(data.map((item) => [item.user_id, item.role_id ?? ""])));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erro ao carregar usuarios.");
+    } finally {
+      setLoadingAssignments(false);
     }
   }
 
   function updateDraftName(nome: string) {
-    setDraft((current) => ({
+    setApplicationDraft((current) => ({
       ...current,
       nome,
-      client_id: selected || current.client_id ? current.client_id : slugify(nome),
+      client_id: activeApplication || current.client_id ? current.client_id : slugify(nome),
     }));
   }
 
-  function updateRole(index: number, input: Partial<DraftRole>) {
-    setDraft((current) => ({
-      ...current,
-      roles: current.roles.map((role, roleIndex) => (
-        roleIndex === index ? { ...role, ...input } : role
-      )),
-    }));
+  function updateProfile(index: number, input: Partial<DraftProfile>) {
+    setProfileDrafts((current) => current.map((profile, profileIndex) => (
+      profileIndex === index ? { ...profile, ...input } : profile
+    )));
   }
 
-  function addRole() {
-    setDraft((current) => ({
+  function addProfile() {
+    setProfileDrafts((current) => [
       ...current,
-      roles: [...current.roles, { nome: "", chave: "", descricao: "", ativo: true }],
-    }));
+      { nome: "", chave: "", descricao: "", ativo: true },
+    ]);
+  }
+
+  function buildApplicationPayload(profiles: DraftProfile[] = profilesToDraft(activeApplication?.roles)) {
+    return {
+      nome: applicationDraft.nome,
+      descricao: applicationDraft.descricao,
+      client_id: applicationDraft.client_id,
+      homepage_url: applicationDraft.homepage_url,
+      redirect_uris: linesToArray(applicationDraft.redirect_uris),
+      allowed_origins: linesToArray(applicationDraft.allowed_origins),
+      ativo: applicationDraft.ativo,
+      roles: profiles.filter((profile) => profile.nome && profile.chave).map((profile) => ({
+        ...profile,
+        descricao: profile.descricao || null,
+      })),
+    };
   }
 
   async function saveApplication(event: FormEvent) {
@@ -183,22 +279,9 @@ export function ApplicationsAdmin() {
     setSaving(true);
     setMessage("");
     try {
-      const payload = {
-        nome: draft.nome,
-        descricao: draft.descricao,
-        client_id: draft.client_id,
-        homepage_url: draft.homepage_url,
-        redirect_uris: linesToArray(draft.redirect_uris),
-        allowed_origins: linesToArray(draft.allowed_origins),
-        ativo: draft.ativo,
-        roles: draft.roles.filter((role) => role.nome && role.chave).map((role) => ({
-          ...role,
-          descricao: role.descricao || null,
-        })),
-      };
-
-      const saved = selected
-        ? await apiFetch<ApplicationResponseDTO>(`/api/v1/applications/${selected.id}`, {
+      const payload = buildApplicationPayload();
+      const saved = activeApplication
+        ? await apiFetch<ApplicationResponseDTO>(`/api/v1/applications/${activeApplication.id}`, {
           method: "PUT",
           body: JSON.stringify(payload),
         })
@@ -207,9 +290,10 @@ export function ApplicationsAdmin() {
           body: JSON.stringify(payload),
         });
 
-      setMessage(selected ? "Plataforma atualizada." : "Plataforma cadastrada.");
+      setMessage(activeApplication ? "Plataforma atualizada." : "Plataforma cadastrada.");
       await loadApplications();
-      await selectApplication(saved);
+      closeModal();
+      setActiveApplication(saved);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro ao salvar plataforma.");
     } finally {
@@ -217,13 +301,34 @@ export function ApplicationsAdmin() {
     }
   }
 
+  async function saveProfiles(event: FormEvent) {
+    event.preventDefault();
+    if (!activeApplication) return;
+    setSaving(true);
+    setMessage("");
+    try {
+      const saved = await apiFetch<ApplicationResponseDTO>(`/api/v1/applications/${activeApplication.id}`, {
+        method: "PUT",
+        body: JSON.stringify(buildApplicationPayload(profileDrafts)),
+      });
+      setMessage("Perfis de usuarios atualizados.");
+      await loadApplications();
+      closeModal();
+      setActiveApplication(saved);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erro ao salvar perfis de usuarios.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function saveAssignments() {
-    if (!selected) return;
-    setSavingAssignments(true);
+    if (!activeApplication) return;
+    setSaving(true);
     setMessage("");
     try {
       const updated = await apiFetch<ApplicationAssignmentDTO[]>(
-        `/api/v1/applications/${selected.id}/assignments`,
+        `/api/v1/applications/${activeApplication.id}/assignments`,
         {
           method: "PUT",
           body: JSON.stringify({
@@ -237,223 +342,316 @@ export function ApplicationsAdmin() {
       setAssignments(updated);
       setMessage("Acessos atualizados.");
       await loadApplications();
+      closeModal();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro ao salvar acessos.");
     } finally {
-      setSavingAssignments(false);
+      setSaving(false);
     }
   }
 
+  function toggleUserSelection(userId: string) {
+    setSelectedUsers((current) => {
+      const next = new Set(current);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  }
+
+  function applyBulkProfile() {
+    setAssignmentDraft((current) => {
+      const next = { ...current };
+      for (const userId of selectedUsers) {
+        next[userId] = bulkProfileId;
+      }
+      return next;
+    });
+  }
+
+  const filteredAssignments = useMemo(() => {
+    const normalizedSearch = userSearch
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
+    if (!normalizedSearch) return assignments;
+
+    return assignments.filter((assignment) => {
+      const haystack = `${assignment.nome} ${assignment.email}`
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      return haystack.includes(normalizedSearch);
+    });
+  }, [assignments, userSearch]);
+
   return (
     <AppShell title="Plataformas">
-      <section className="grid gap-5 xl:grid-cols-[1fr_430px]">
-        <div className="panel overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/70 p-5">
-            <div>
-              <h1 className="text-2xl font-semibold text-white">Plataformas</h1>
-              <p className="text-sm text-slate-400">
-                {isAdmin ? `${activeCount} ativas de ${applications.length} cadastradas` : `${applications.length} liberadas para sua conta`}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button className="btn-secondary px-3" type="button" onClick={loadApplications} title="Recarregar">
-                <RefreshCw size={17} aria-hidden="true" />
-              </button>
-              {isAdmin ? (
-                <button className="btn-primary" type="button" onClick={resetDraft}>
-                  <Plus size={17} aria-hidden="true" />
-                  Nova
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {message ? (
-            <p className="mx-5 mt-5 rounded-lg border border-cyan-400/30 bg-cyan-950/40 px-3 py-2 text-sm text-cyan-100">
-              {message}
+      <section className="panel overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/70 p-5">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">Plataformas</h1>
+            <p className="text-sm text-slate-400">
+              {isAdmin ? `${activeCount} ativas de ${applications.length} cadastradas` : `${applications.length} liberadas para sua conta`}
             </p>
-          ) : null}
-
-          <div className="grid gap-3 p-5">
-            {loading ? (
-              <p className="text-sm text-slate-300">Carregando plataformas...</p>
-            ) : applications.length === 0 ? (
-              <p className="text-sm text-slate-300">
-                {isAdmin ? "Nenhuma plataforma cadastrada." : "Nenhuma plataforma liberada para sua conta."}
-              </p>
-            ) : (
-              applications.map((application) => (
-                <button
-                  key={application.id}
-                  className={`rounded-lg border p-4 text-left transition ${selected?.id === application.id ? "border-cyan-300/70 bg-cyan-950/35" : "border-slate-700/70 bg-slate-950/45 hover:border-cyan-400/45 hover:bg-slate-900/70"}`}
-                  type="button"
-                  onClick={() => selectApplication(application)}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <AppWindow size={18} className="text-cyan-200" aria-hidden="true" />
-                        <h2 className="font-semibold text-white">{application.nome}</h2>
-                      </div>
-                      <p className="mt-1 text-sm text-slate-400">{application.descricao || application.client_id}</p>
-                    </div>
-                    <span className={application.ativo ? "text-sm text-emerald-300" : "text-sm text-rose-300"}>
-                      {application.ativo ? "Ativa" : "Inativa"}
-                    </span>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
-                    {application.user_role ? (
-                      <span className="rounded-md border border-cyan-400/25 bg-cyan-950/35 px-2 py-1 text-cyan-100">
-                        {application.user_role.nome}
-                      </span>
-                    ) : null}
-                    {isAdmin ? (
-                      <>
-                        <span className="rounded-md border border-slate-700 px-2 py-1">
-                          {application.client_id}
-                        </span>
-                        <span className="rounded-md border border-slate-700 px-2 py-1">
-                          {editableRoles(application.roles).length} roles
-                        </span>
-                      </>
-                    ) : null}
-                  </div>
-                </button>
-              ))
-            )}
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-secondary px-3" type="button" onClick={loadApplications} title="Recarregar">
+              <RefreshCw size={17} aria-hidden="true" />
+            </button>
+            {isAdmin ? (
+              <button className="btn-primary" type="button" onClick={openCreateModal}>
+                <Plus size={17} aria-hidden="true" />
+                Nova
+              </button>
+            ) : null}
           </div>
         </div>
 
-        {isAdmin ? (
-          <aside className="grid h-fit gap-5">
-            <form className="panel p-5" onSubmit={saveApplication}>
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/15 text-cyan-200">
-                  {selected ? <Save size={19} aria-hidden="true" /> : <Plus size={19} aria-hidden="true" />}
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-white">
-                    {selected ? "Editar plataforma" : "Cadastrar plataforma"}
-                  </h2>
-                  <p className="text-sm text-slate-400">Identidade, callbacks e roles nominais.</p>
-                </div>
-              </div>
+        {message ? (
+          <p className="mx-5 mt-5 rounded-lg border border-cyan-400/30 bg-cyan-950/40 px-3 py-2 text-sm text-cyan-100">
+            {message}
+          </p>
+        ) : null}
 
-              <div className="space-y-3">
-                <input className="field" placeholder="Nome" value={draft.nome} onChange={(event) => updateDraftName(event.target.value)} required />
-                <input className="field" placeholder="client_id" value={draft.client_id} onChange={(event) => setDraft({ ...draft, client_id: slugify(event.target.value) })} required />
-                <textarea className="field min-h-24" placeholder="Descricao" value={draft.descricao} onChange={(event) => setDraft({ ...draft, descricao: event.target.value })} />
-                <input className="field" placeholder="URL inicial da plataforma" type="url" value={draft.homepage_url} onChange={(event) => setDraft({ ...draft, homepage_url: event.target.value })} />
-                <textarea className="field min-h-24" placeholder="Redirect URIs permitidas, uma por linha" value={draft.redirect_uris} onChange={(event) => setDraft({ ...draft, redirect_uris: event.target.value })} required />
-                <textarea className="field min-h-24" placeholder="Origens permitidas, uma por linha" value={draft.allowed_origins} onChange={(event) => setDraft({ ...draft, allowed_origins: event.target.value })} />
-                <label className="flex items-center gap-2 text-sm text-slate-200">
-                  <input type="checkbox" checked={draft.ativo} onChange={(event) => setDraft({ ...draft, ativo: event.target.checked })} />
-                  Plataforma ativa
-                </label>
-              </div>
-
-              {selected?.client_secret ? (
-                <div className="mt-4 rounded-lg border border-slate-700 bg-slate-950/60 p-3">
-                  <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-200">
-                    <KeyRound size={15} aria-hidden="true" />
-                    Client secret
-                  </p>
-                  <code className="block break-all text-xs text-slate-300">{selected.client_secret}</code>
-                </div>
-              ) : null}
-
-              <div className="mt-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-                    <ShieldCheck size={16} aria-hidden="true" />
-                    Roles
-                  </h3>
-                  <button className="btn-secondary min-h-9 px-3 py-1" type="button" onClick={addRole}>
-                    <Plus size={15} aria-hidden="true" />
-                    Role
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  {draft.roles.map((role, index) => (
-                    <div key={role.id ?? index} className="rounded-lg border border-slate-700 bg-slate-950/45 p-3">
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <input className="field" placeholder="Nome da role" value={role.nome} onChange={(event) => updateRole(index, { nome: event.target.value })} />
-                        <input className="field" placeholder="chave" value={role.chave} onChange={(event) => updateRole(index, { chave: slugify(event.target.value) })} />
-                      </div>
-                      <input className="field mt-2" placeholder="Descricao" value={role.descricao} onChange={(event) => updateRole(index, { descricao: event.target.value })} />
-                      <label className="mt-2 flex items-center gap-2 text-sm text-slate-200">
-                        <input type="checkbox" checked={role.ativo} onChange={(event) => updateRole(index, { ativo: event.target.checked })} />
-                        Role ativa
-                      </label>
+        <div className="grid gap-3 p-5">
+          {loading ? (
+            <p className="text-sm text-slate-300">Carregando plataformas...</p>
+          ) : applications.length === 0 ? (
+            <p className="text-sm text-slate-300">
+              {isAdmin ? "Nenhuma plataforma cadastrada." : "Nenhuma plataforma liberada para sua conta."}
+            </p>
+          ) : (
+            applications.map((application) => (
+              <article
+                key={application.id}
+                className="rounded-lg border border-slate-700/70 bg-slate-950/45 p-4 transition hover:border-cyan-400/45 hover:bg-slate-900/70"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <AppWindow size={18} className="text-cyan-200" aria-hidden="true" />
+                      <h2 className="font-semibold text-white">{application.nome}</h2>
                     </div>
-                  ))}
+                    <p className="mt-1 text-sm text-slate-400">{application.descricao || application.client_id}</p>
+                  </div>
+                  <span className={application.ativo ? "text-sm text-emerald-300" : "text-sm text-rose-300"}>
+                    {application.ativo ? "Ativa" : "Inativa"}
+                  </span>
                 </div>
-              </div>
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                <button className="btn-primary" disabled={saving} type="submit">
-                  <Save size={17} aria-hidden="true" />
-                  {saving ? "Salvando..." : selected ? "Salvar" : "Cadastrar"}
-                </button>
-                {selected ? (
-                  <button className="btn-secondary" type="button" onClick={resetDraft}>
-                    Cancelar
-                  </button>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
+                  {application.user_role ? (
+                    <span className="rounded-md border border-cyan-400/25 bg-cyan-950/35 px-2 py-1 text-cyan-100">
+                      {application.user_role.nome}
+                    </span>
+                  ) : null}
+                  {isAdmin ? (
+                    <>
+                      <span className="rounded-md border border-slate-700 px-2 py-1">
+                        {application.client_id}
+                      </span>
+                      <span className="rounded-md border border-slate-700 px-2 py-1">
+                        {editableProfiles(application.roles).length} perfis de usuarios
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+
+                {isAdmin ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={() => openEditModal(application)}>
+                      <Edit3 size={15} aria-hidden="true" />
+                      Editar
+                    </button>
+                    <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={() => openProfilesModal(application)}>
+                      <ShieldCheck size={15} aria-hidden="true" />
+                      Perfis de Usuarios
+                    </button>
+                    <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={() => void openUsersModal(application)}>
+                      <UsersRound size={15} aria-hidden="true" />
+                      Usuarios
+                    </button>
+                  </div>
+                ) : application.homepage_url ? (
+                  <a className="btn-primary mt-4 w-fit" href={application.homepage_url} target="_blank" rel="noreferrer">
+                    <ExternalLink size={17} aria-hidden="true" />
+                    Abrir plataforma
+                  </a>
+                ) : null}
+              </article>
+            ))
+          )}
+        </div>
+      </section>
+
+      {modalMode === "edit" ? (
+        <Modal
+          title={activeApplication ? "Editar plataforma" : "Cadastrar plataforma"}
+          description="Identidade, URLs permitidas e status da plataforma."
+          icon={activeApplication ? <Save size={19} aria-hidden="true" /> : <Plus size={19} aria-hidden="true" />}
+          onClose={closeModal}
+        >
+          <form onSubmit={saveApplication} className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <input className="field" placeholder="Nome" value={applicationDraft.nome} onChange={(event) => updateDraftName(event.target.value)} required />
+              <input className="field" placeholder="client_id" value={applicationDraft.client_id} onChange={(event) => setApplicationDraft({ ...applicationDraft, client_id: slugify(event.target.value) })} required />
+            </div>
+            <textarea className="field min-h-24" placeholder="Descricao" value={applicationDraft.descricao} onChange={(event) => setApplicationDraft({ ...applicationDraft, descricao: event.target.value })} />
+            <input className="field" placeholder="URL inicial da plataforma" type="url" value={applicationDraft.homepage_url} onChange={(event) => setApplicationDraft({ ...applicationDraft, homepage_url: event.target.value })} />
+            <textarea className="field min-h-24" placeholder="Redirect URIs permitidas, uma por linha" value={applicationDraft.redirect_uris} onChange={(event) => setApplicationDraft({ ...applicationDraft, redirect_uris: event.target.value })} required />
+            <textarea className="field min-h-24" placeholder="Origens permitidas, uma por linha" value={applicationDraft.allowed_origins} onChange={(event) => setApplicationDraft({ ...applicationDraft, allowed_origins: event.target.value })} />
+            <label className="flex items-center gap-2 text-sm text-slate-200">
+              <input type="checkbox" checked={applicationDraft.ativo} onChange={(event) => setApplicationDraft({ ...applicationDraft, ativo: event.target.checked })} />
+              Plataforma ativa
+            </label>
+
+            {activeApplication?.client_secret ? (
+              <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
+                <p className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-200">
+                  <KeyRound size={15} aria-hidden="true" />
+                  Client secret
+                </p>
+                <code className="block break-all text-xs text-slate-300">{activeApplication.client_secret}</code>
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-2 pt-2">
+              <button className="btn-primary" disabled={saving} type="submit">
+                <Save size={17} aria-hidden="true" />
+                {saving ? "Salvando..." : activeApplication ? "Salvar" : "Cadastrar"}
+              </button>
+              <button className="btn-secondary" type="button" onClick={closeModal}>
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {modalMode === "profiles" && activeApplication ? (
+        <Modal
+          title="Perfis de Usuarios"
+          description={`Configure os perfis da plataforma ${activeApplication.nome}.`}
+          icon={<ShieldCheck size={19} aria-hidden="true" />}
+          onClose={closeModal}
+        >
+          <form onSubmit={saveProfiles} className="space-y-4">
+            <div className="flex justify-end">
+              <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={addProfile}>
+                <Plus size={15} aria-hidden="true" />
+                Perfil de Usuario
+              </button>
+            </div>
+            {profileDrafts.length === 0 ? (
+              <p className="rounded-lg border border-slate-700 bg-slate-950/45 p-4 text-sm text-slate-300">
+                Nenhum perfil de usuario cadastrado alem de Nao autorizado.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {profileDrafts.map((profile, index) => (
+                  <div key={profile.id ?? index} className="rounded-lg border border-slate-700 bg-slate-950/45 p-3">
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <input className="field" placeholder="Nome do perfil" value={profile.nome} onChange={(event) => updateProfile(index, { nome: event.target.value })} />
+                      <input className="field" placeholder="chave" value={profile.chave} onChange={(event) => updateProfile(index, { chave: slugify(event.target.value) })} />
+                    </div>
+                    <input className="field mt-2" placeholder="Descricao" value={profile.descricao} onChange={(event) => updateProfile(index, { descricao: event.target.value })} />
+                    <label className="mt-2 flex items-center gap-2 text-sm text-slate-200">
+                      <input type="checkbox" checked={profile.ativo} onChange={(event) => updateProfile(index, { ativo: event.target.checked })} />
+                      Perfil ativo
+                    </label>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2 pt-2">
+              <button className="btn-primary" disabled={saving} type="submit">
+                <Save size={17} aria-hidden="true" />
+                {saving ? "Salvando..." : "Salvar perfis"}
+              </button>
+              <button className="btn-secondary" type="button" onClick={closeModal}>
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {modalMode === "users" && activeApplication ? (
+        <Modal
+          title="Usuarios"
+          description={`Atribua perfis de usuarios para ${activeApplication.nome}.`}
+          icon={<UsersRound size={19} aria-hidden="true" />}
+          onClose={closeModal}
+          maxWidth="max-w-5xl"
+        >
+          <div className="space-y-4">
+            <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
+              <input className="field" placeholder="Filtrar por nome ou e-mail" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} />
+              <select className="field min-w-56" value={bulkProfileId} onChange={(event) => setBulkProfileId(event.target.value)}>
+                <option value="">Nao autorizado</option>
+                {editableProfiles(activeApplication.roles).filter((profile) => profile.ativo).map((profile) => (
+                  <option key={profile.id} value={profile.id}>{profile.nome}</option>
+                ))}
+              </select>
+              <button className="btn-secondary" type="button" onClick={applyBulkProfile} disabled={selectedUsers.size === 0}>
+                Aplicar aos selecionados
+              </button>
+            </div>
+
+            {loadingAssignments ? (
+              <p className="text-sm text-slate-300">Carregando usuarios...</p>
+            ) : (
+              <div className="max-h-[560px] overflow-y-auto rounded-lg border border-slate-700">
+                {filteredAssignments.map((assignment) => (
+                  <div key={assignment.user_id} className="grid gap-3 border-b border-slate-700 bg-slate-950/45 p-3 last:border-b-0 md:grid-cols-[auto_1fr_260px] md:items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.has(assignment.user_id)}
+                      onChange={() => toggleUserSelection(assignment.user_id)}
+                      aria-label={`Selecionar ${assignment.nome}`}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-white">{assignment.nome}</p>
+                      <p className="truncate text-xs text-slate-400">{assignment.email}</p>
+                    </div>
+                    <select
+                      className="field"
+                      value={assignmentDraft[assignment.user_id] ?? ""}
+                      onChange={(event) => setAssignmentDraft({
+                        ...assignmentDraft,
+                        [assignment.user_id]: event.target.value,
+                      })}
+                    >
+                      <option value="">Nao autorizado</option>
+                      {editableProfiles(activeApplication.roles).filter((profile) => profile.ativo).map((profile) => (
+                        <option key={profile.id} value={profile.id}>{profile.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+                {filteredAssignments.length === 0 ? (
+                  <p className="p-4 text-sm text-slate-300">Nenhum usuario encontrado.</p>
                 ) : null}
               </div>
-            </form>
+            )}
 
-            {selected ? (
-              <section className="panel p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-                      <UsersRound size={18} aria-hidden="true" />
-                      Usuarios
-                    </h2>
-                    <p className="text-sm text-slate-400">Nao autorizado e a opcao padrao.</p>
-                  </div>
-                  <button className="btn-primary min-h-9 px-3 py-1" type="button" onClick={saveAssignments} disabled={savingAssignments}>
-                    {savingAssignments ? "Salvando..." : "Salvar"}
-                  </button>
-                </div>
-                <div className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
-                  {assignments.map((assignment) => (
-                    <div key={assignment.user_id} className="grid gap-2 rounded-lg border border-slate-700 bg-slate-950/45 p-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-white">{assignment.nome}</p>
-                        <p className="truncate text-xs text-slate-400">{assignment.email}</p>
-                      </div>
-                      <select
-                        className="field"
-                        value={assignmentDraft[assignment.user_id] ?? ""}
-                        onChange={(event) => setAssignmentDraft({
-                          ...assignmentDraft,
-                          [assignment.user_id]: event.target.value,
-                        })}
-                      >
-                        <option value="">Nao autorizado</option>
-                        {editableRoles(selected.roles).filter((role) => role.ativo).map((role) => (
-                          <option key={role.id} value={role.id}>{role.nome}</option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-          </aside>
-        ) : selected?.homepage_url ? (
-          <aside className="panel h-fit p-5">
-            <h2 className="text-lg font-semibold text-white">{selected.nome}</h2>
-            <p className="mt-2 text-sm text-slate-400">{selected.descricao}</p>
-            <a className="btn-primary mt-5" href={selected.homepage_url} target="_blank" rel="noreferrer">
-              <ExternalLink size={17} aria-hidden="true" />
-              Abrir plataforma
-            </a>
-          </aside>
-        ) : null}
-      </section>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <button className="btn-primary" disabled={saving || loadingAssignments} type="button" onClick={saveAssignments}>
+                <Save size={17} aria-hidden="true" />
+                {saving ? "Salvando..." : "Salvar acessos"}
+              </button>
+              <button className="btn-secondary" type="button" onClick={closeModal}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </AppShell>
   );
 }

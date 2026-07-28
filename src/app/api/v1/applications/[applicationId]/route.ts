@@ -11,7 +11,7 @@ type Params = {
 
 export async function PUT(request: Request, { params }: Params) {
   return handleApi(async () => {
-    rateLimit(request, 20, 60_000);
+    rateLimit(request, 40, 60_000);
     const { applicationId } = await params;
     const context = await new AuthService().authenticate(request);
     const input = updateApplicationSchema.parse(await request.json());

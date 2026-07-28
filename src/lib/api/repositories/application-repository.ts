@@ -45,6 +45,17 @@ export class ApplicationRepository {
     return data;
   }
 
+  async findByClientId(clientId: string) {
+    const { data, error } = await this.supabase
+      .from("applications")
+      .select("*")
+      .eq("client_id", clientId)
+      .maybeSingle<ApplicationRow>();
+
+    if (error) throw error;
+    return data;
+  }
+
   async create(input: Partial<ApplicationRow>) {
     const { data, error } = await this.supabase
       .from("applications")
@@ -154,5 +165,19 @@ export class ApplicationRepository {
 
     if (error) throw error;
     return Boolean(data);
+  }
+
+  async findUserRole(userId: string, applicationId: string) {
+    const { data, error } = await this.supabase
+      .from("user_applications")
+      .select("id, ativo, application_roles!inner(*)")
+      .eq("user_id", userId)
+      .eq("application_id", applicationId)
+      .eq("ativo", true)
+      .eq("application_roles.ativo", true)
+      .maybeSingle<{ application_roles: ApplicationRoleRow | null }>();
+
+    if (error) throw error;
+    return data?.application_roles ?? null;
   }
 }
