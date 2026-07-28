@@ -38,9 +38,6 @@ export default function Home() {
               <Link className="btn-primary" href="/login">
                 Acessar plataforma
               </Link>
-              <Link className="btn-secondary" href="/admin/users">
-                Administrar usuarios
-              </Link>
             </div>
           </div>
 
