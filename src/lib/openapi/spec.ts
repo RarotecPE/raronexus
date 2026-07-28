@@ -32,6 +32,15 @@ export const openApiSpec = {
           ativo: { type: "boolean" },
         },
       },
+      ApplicationResponseDTO: {
+        type: "object",
+        properties: {
+          id: { type: "string", format: "uuid" },
+          nome: { type: "string" },
+          client_id: { type: "string" },
+          ativo: { type: "boolean" },
+        },
+      },
     },
   },
   paths: {
@@ -121,6 +130,65 @@ export const openApiSpec = {
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
         responses: { "200": { description: "Usuario desativado" } },
+      },
+    },
+    "/applications": {
+      get: {
+        summary: "Listar plataformas",
+        tags: ["Applications"],
+        security: [{ bearerAuth: [] }],
+        responses: { "200": { description: "Lista de plataformas" } },
+      },
+      post: {
+        summary: "Cadastrar plataforma",
+        tags: ["Applications"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["nome", "client_id", "redirect_uris"],
+                properties: {
+                  nome: { type: "string" },
+                  descricao: { type: "string" },
+                  client_id: { type: "string" },
+                  homepage_url: { type: "string", format: "uri" },
+                  redirect_uris: { type: "array", items: { type: "string", format: "uri" } },
+                  allowed_origins: { type: "array", items: { type: "string", format: "uri" } },
+                  ativo: { type: "boolean" },
+                },
+              },
+            },
+          },
+        },
+        responses: { "201": { description: "Plataforma criada" } },
+      },
+    },
+    "/applications/{applicationId}": {
+      put: {
+        summary: "Atualizar plataforma",
+        tags: ["Applications"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "applicationId", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Plataforma atualizada" } },
+      },
+    },
+    "/applications/{applicationId}/assignments": {
+      get: {
+        summary: "Listar roles dos usuarios na plataforma",
+        tags: ["Applications"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "applicationId", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Lista de vinculos usuario-role" } },
+      },
+      put: {
+        summary: "Atualizar roles dos usuarios na plataforma",
+        tags: ["Applications"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "applicationId", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Vinculos atualizados" } },
       },
     },
     "/applications/{applicationId}/access": {
