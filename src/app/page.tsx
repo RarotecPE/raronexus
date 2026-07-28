@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Activity, AppWindow, KeyRound, UsersRound } from "lucide-react";
+import { HomeSessionRedirect } from "@/components/auth/home-session-redirect";
 import { BrandMark } from "@/components/layout/brand-mark";
 
 const modules = [
@@ -12,6 +13,7 @@ const modules = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#0f3b68_0,#020617_38%,#020617_100%)]">
+      <HomeSessionRedirect />
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-cyan-400/15 pb-5">
           <BrandMark />
