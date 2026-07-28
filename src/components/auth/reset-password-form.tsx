@@ -38,7 +38,7 @@ export function ResetPasswordForm({
 
     setMessage(successMessage);
     setLoading(false);
-    router.replace("/");
+    router.replace("/login");
   }
 
   return (
