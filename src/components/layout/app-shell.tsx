@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { AppWindow, LogOut, UserRound, UsersRound } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { BrandMark } from "@/components/layout/brand-mark";
+import { apiFetch } from "@/lib/api/client-fetch";
+import type { UserResponseDTO } from "@/lib/api/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export function AppShell({
@@ -14,6 +17,23 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    apiFetch<UserResponseDTO>("/api/v1/users/me")
+      .then((user) => {
+        if (active) setIsAdmin(Boolean(user.is_admin));
+      })
+      .catch(() => {
+        if (active) setIsAdmin(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function signOut() {
     const supabase = createBrowserSupabaseClient();
@@ -38,10 +58,12 @@ export function AppShell({
               <AppWindow size={16} aria-hidden="true" />
               Plataformas
             </Link>
-            <Link className="btn-secondary" href="/admin/users">
-              <UsersRound size={16} aria-hidden="true" />
-              Usuarios
-            </Link>
+            {isAdmin ? (
+              <Link className="btn-secondary" href="/admin/users">
+                <UsersRound size={16} aria-hidden="true" />
+                Usuarios
+              </Link>
+            ) : null}
             <button className="btn-secondary" type="button" onClick={signOut}>
               <LogOut size={16} aria-hidden="true" />
               Sair
