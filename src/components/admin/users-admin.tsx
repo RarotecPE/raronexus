@@ -14,6 +14,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
 import { uploadAvatar } from "@/lib/avatar-upload";
@@ -103,6 +104,7 @@ function Modal({
 }
 
 export function UsersAdmin() {
+  const router = useRouter();
   const [me, setMe] = useState<UserResponseDTO | null>(null);
   const [users, setUsers] = useState<UserResponseDTO[]>([]);
   const [search, setSearch] = useState("");
@@ -131,11 +133,15 @@ export function UsersAdmin() {
     setLoading(true);
     try {
       const suffix = query ? `?search=${encodeURIComponent(query)}` : "";
-      const [profile, loadedUsers] = await Promise.all([
-        apiFetch<UserResponseDTO>("/api/v1/users/me"),
-        apiFetch<UserResponseDTO[]>(`/api/v1/users${suffix}`),
-      ]);
+      const profile = await apiFetch<UserResponseDTO>("/api/v1/users/me");
       setMe(profile);
+
+      if (!profile.is_admin) {
+        router.replace("/applications");
+        return;
+      }
+
+      const loadedUsers = await apiFetch<UserResponseDTO[]>(`/api/v1/users${suffix}`);
       setUsers(loadedUsers);
     } catch (error) {
       setAlert({
@@ -145,7 +151,7 @@ export function UsersAdmin() {
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [router, search]);
 
   useEffect(() => {
     queueMicrotask(() => {
