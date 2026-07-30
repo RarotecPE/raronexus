@@ -47,7 +47,9 @@ export function AppShell({
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-cyan-400/15 pb-5">
           <Link href="/" className="flex items-center gap-3">
             <BrandMark />
-            <span className="hidden text-xs text-slate-400 sm:block">{title}</span>
+            <span className="hidden text-sm font-medium text-slate-300 sm:block">
+              {title}
+            </span>
           </Link>
           <nav className="flex flex-wrap gap-2">
             <Link className="btn-secondary" href="/profile">
