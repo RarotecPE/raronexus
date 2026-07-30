@@ -21,6 +21,7 @@ Identity Provider corporativo baseado em Next.js, TypeScript, Tailwind CSS e Sup
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `NEXT_PUBLIC_APP_URL`
+   - `NEXT_PUBLIC_ENVIRONMENT_LABEL` opcional, por exemplo `HOMOLOGAÇÃO`, para exibir um aviso global em ambientes nao produtivos.
 3. Aplique a migration em `supabase/migrations/20260724165000_raronexus_identity.sql` no projeto Supabase.
 4. Crie pelo menos um usuario inicial no Supabase Auth e um registro correspondente em `public.users` com `is_admin = true`.
 
