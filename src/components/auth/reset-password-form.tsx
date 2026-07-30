@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { KeyRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -19,6 +19,11 @@ export function ResetPasswordForm({
   const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const supabase = createBrowserSupabaseClient();
+    void supabase.auth.getSession();
+  }, []);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
