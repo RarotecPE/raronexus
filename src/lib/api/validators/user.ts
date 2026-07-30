@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 export const loginSchema = z.object({
-  email: z.email("Informe um e-mail valido."),
+  cpf: z
+    .string()
+    .min(11, "Informe um CPF valido.")
+    .max(14, "Informe um CPF valido.")
+    .regex(/^(\d{11}|\d{3}\.\d{3}\.\d{3}-\d{2})$/, "Informe um CPF valido."),
   password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres."),
 });
 

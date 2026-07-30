@@ -28,6 +28,18 @@ export class UserRepository {
     return data;
   }
 
+  async findByCpf(cpf: string) {
+    const digits = cpf.replace(/\D/g, "");
+    const { data, error } = await this.supabase
+      .from(TABLE)
+      .select("*")
+      .eq("cpf_digits", digits)
+      .maybeSingle<UserRow>();
+
+    if (error) throw error;
+    return data;
+  }
+
   async list(search?: string) {
     let query = this.supabase
       .from(TABLE)
@@ -35,7 +47,14 @@ export class UserRepository {
       .order("created_at", { ascending: false });
 
     if (search) {
-      query = query.or(`nome.ilike.%${search}%,email.ilike.%${search}%`);
+      const digits = search.replace(/\D/g, "");
+      const filters = [`nome.ilike.%${search}%`, `email.ilike.%${search}%`];
+
+      if (digits) {
+        filters.push(`cpf_digits.ilike.%${digits}%`);
+      }
+
+      query = query.or(filters.join(","));
     }
 
     const { data, error } = await query.returns<UserRow[]>();

@@ -4,8 +4,8 @@ import { createUserSchema, loginSchema, profileSchema } from "@/lib/api/validato
 
 describe("api validators", () => {
   it("accepts valid login credentials", () => {
-    assert.deepEqual(loginSchema.parse({ email: "user@empresa.com", password: "secret1" }), {
-      email: "user@empresa.com",
+    assert.deepEqual(loginSchema.parse({ cpf: "123.456.789-10", password: "secret1" }), {
+      cpf: "123.456.789-10",
       password: "secret1",
     });
   });

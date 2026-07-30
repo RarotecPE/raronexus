@@ -55,9 +55,9 @@ export const openApiSpec = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["email", "password"],
+                required: ["cpf", "password"],
                 properties: {
-                  email: { type: "string", format: "email" },
+                  cpf: { type: "string", example: "000.000.000-00" },
                   password: { type: "string", format: "password" },
                 },
               },
