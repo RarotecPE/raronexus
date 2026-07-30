@@ -3,21 +3,31 @@ import { UserRepository } from "../repositories/user-repository";
 import type { AuthenticatedContext } from "../types";
 import { createAdminSupabaseClient, createAnonSupabaseClient } from "@/lib/supabase/server";
 
+const invalidCpfLoginMessage = "CPF ou senha invalidos.";
+
 export class AuthService {
-  async login(email: string, password: string) {
+  async login(cpf: string, password: string) {
+    const repository = new UserRepository(createAdminSupabaseClient());
+    const user = await repository.findByCpf(cpf);
+
+    if (!user) {
+      throw new ApiException(invalidCpfLoginMessage, "INVALID_LOGIN", 401);
+    }
+
     const supabase = createAnonSupabaseClient();
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: user.email,
       password,
     });
 
     if (error || !data.session || !data.user) {
-      throw new ApiException(friendlyAuthError(error?.message), "INVALID_LOGIN", 401);
+      const message = error?.message?.toLowerCase().includes("email not confirmed")
+        ? friendlyAuthError(error.message)
+        : invalidCpfLoginMessage;
+      throw new ApiException(message, "INVALID_LOGIN", 401);
     }
 
-    const profile = await new UserRepository(createAdminSupabaseClient()).findByAuthUserId(
-      data.user.id,
-    );
+    const profile = await repository.findByAuthUserId(data.user.id);
 
     if (!profile?.ativo) {
       throw new ApiException("Usuario inativo.", "USER_INACTIVE", 403);

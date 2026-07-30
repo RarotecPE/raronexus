@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   return handleApi(async () => {
     rateLimit(request, 16, 60_000);
     const input = loginSchema.parse(await request.json());
-    const data = await new AuthService().login(input.email, input.password);
+    const data = await new AuthService().login(input.cpf, input.password);
 
     await new AuditRepository(createAdminSupabaseClient()).log({
       user_id: data.user.id,

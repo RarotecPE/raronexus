@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { LogIn } from "lucide-react";
+import { formatCpf } from "@/lib/formatters";
 
 export function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [cpf, setCpf] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,8 +21,16 @@ export function LoginForm() {
     const response = await fetch("/api/v1/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ cpf, password }),
     });
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (!contentType.includes("application/json")) {
+      setMessage(`Resposta invalida da API (${response.status}). Verifique se o servidor do Nexus esta correto.`);
+      setLoading(false);
+      return;
+    }
+
     const payload = await response.json();
 
     if (!payload.success) {
@@ -45,16 +54,18 @@ export function LoginForm() {
   return (
     <form className="space-y-4" onSubmit={onSubmit}>
       <div>
-        <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="email">
-          E-mail
+        <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="cpf">
+          CPF
         </label>
         <input
-          id="email"
+          id="cpf"
           className="field"
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          type="text"
+          inputMode="numeric"
+          autoComplete="username"
+          placeholder="000.000.000-00"
+          value={cpf}
+          onChange={(event) => setCpf(formatCpf(event.target.value))}
           required
         />
       </div>

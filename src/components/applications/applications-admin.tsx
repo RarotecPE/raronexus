@@ -138,6 +138,28 @@ function Modal({
   );
 }
 
+function FieldGroup({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="grid gap-1.5 text-sm font-medium text-slate-200">
+      <span>{label}</span>
+      {description ? (
+        <span className="text-xs font-normal leading-relaxed text-slate-400">
+          {description}
+        </span>
+      ) : null}
+      {children}
+    </label>
+  );
+}
+
 export function ApplicationsAdmin() {
   const [me, setMe] = useState<UserResponseDTO | null>(null);
   const [applications, setApplications] = useState<ApplicationResponseDTO[]>([]);
@@ -557,13 +579,25 @@ export function ApplicationsAdmin() {
         >
           <form onSubmit={saveApplication} className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
-              <input className="field" placeholder="Nome" value={applicationDraft.nome} onChange={(event) => updateDraftName(event.target.value)} required />
-              <input className="field" placeholder="client_id" value={applicationDraft.client_id} onChange={(event) => setApplicationDraft({ ...applicationDraft, client_id: slugify(event.target.value) })} required />
+              <FieldGroup label="Nome">
+                <input className="field" placeholder="RaroStock" value={applicationDraft.nome} onChange={(event) => updateDraftName(event.target.value)} required />
+              </FieldGroup>
+              <FieldGroup label="Identificador" description="Usado pela plataforma no login SSO.">
+                <input className="field" placeholder="rarostock" value={applicationDraft.client_id} onChange={(event) => setApplicationDraft({ ...applicationDraft, client_id: slugify(event.target.value) })} required />
+              </FieldGroup>
             </div>
-            <textarea className="field min-h-24" placeholder="Descricao" value={applicationDraft.descricao} onChange={(event) => setApplicationDraft({ ...applicationDraft, descricao: event.target.value })} />
-            <input className="field" placeholder="URL inicial da plataforma" type="url" value={applicationDraft.homepage_url} onChange={(event) => setApplicationDraft({ ...applicationDraft, homepage_url: event.target.value })} />
-            <textarea className="field min-h-24" placeholder="Redirect URIs permitidas, uma por linha" value={applicationDraft.redirect_uris} onChange={(event) => setApplicationDraft({ ...applicationDraft, redirect_uris: event.target.value })} required />
-            <textarea className="field min-h-24" placeholder="Origens permitidas, uma por linha" value={applicationDraft.allowed_origins} onChange={(event) => setApplicationDraft({ ...applicationDraft, allowed_origins: event.target.value })} />
+            <FieldGroup label="Descricao">
+              <textarea className="field min-h-24" placeholder="Controle interno de estoque" value={applicationDraft.descricao} onChange={(event) => setApplicationDraft({ ...applicationDraft, descricao: event.target.value })} />
+            </FieldGroup>
+            <FieldGroup label="URL inicial" description="Endereco do botao Abrir plataforma.">
+              <input className="field" placeholder="https://rarostock.rarotec.com" type="url" value={applicationDraft.homepage_url} onChange={(event) => setApplicationDraft({ ...applicationDraft, homepage_url: event.target.value })} />
+            </FieldGroup>
+            <FieldGroup label="Redirecionamentos" description="Callbacks permitidos apos o login. Um por linha.">
+              <textarea className="field min-h-24" placeholder="https://rarostock.rarotec.com/api/auth/raronexus/callback" value={applicationDraft.redirect_uris} onChange={(event) => setApplicationDraft({ ...applicationDraft, redirect_uris: event.target.value })} required />
+            </FieldGroup>
+            <FieldGroup label="Origens" description="Dominios permitidos. Um por linha.">
+              <textarea className="field min-h-24" placeholder="https://rarostock.rarotec.com" value={applicationDraft.allowed_origins} onChange={(event) => setApplicationDraft({ ...applicationDraft, allowed_origins: event.target.value })} />
+            </FieldGroup>
             <label className="flex items-center gap-2 text-sm text-slate-200">
               <input type="checkbox" checked={applicationDraft.ativo} onChange={(event) => setApplicationDraft({ ...applicationDraft, ativo: event.target.checked })} />
               Plataforma ativa
@@ -615,10 +649,18 @@ export function ApplicationsAdmin() {
                 {profileDrafts.map((profile, index) => (
                   <div key={profile.id ?? index} className="rounded-lg border border-slate-700 bg-slate-950/45 p-3">
                     <div className="grid gap-2 md:grid-cols-2">
-                      <input className="field" placeholder="Nome do perfil" value={profile.nome} onChange={(event) => updateProfile(index, { nome: event.target.value })} />
-                      <input className="field" placeholder="chave" value={profile.chave} onChange={(event) => updateProfile(index, { chave: slugify(event.target.value) })} />
+                      <FieldGroup label="Nome">
+                        <input className="field" placeholder="Gestor" value={profile.nome} onChange={(event) => updateProfile(index, { nome: event.target.value })} />
+                      </FieldGroup>
+                      <FieldGroup label="Chave" description="Valor enviado para a plataforma.">
+                        <input className="field" placeholder="gestor" value={profile.chave} onChange={(event) => updateProfile(index, { chave: slugify(event.target.value) })} />
+                      </FieldGroup>
                     </div>
-                    <input className="field mt-2" placeholder="Descricao" value={profile.descricao} onChange={(event) => updateProfile(index, { descricao: event.target.value })} />
+                    <div className="mt-2">
+                      <FieldGroup label="Descricao">
+                        <input className="field" placeholder="Pode cadastrar e visualizar registros" value={profile.descricao} onChange={(event) => updateProfile(index, { descricao: event.target.value })} />
+                      </FieldGroup>
+                    </div>
                     <label className="mt-2 flex items-center gap-2 text-sm text-slate-200">
                       <input type="checkbox" checked={profile.ativo} onChange={(event) => updateProfile(index, { ativo: event.target.checked })} />
                       Perfil ativo
@@ -650,13 +692,17 @@ export function ApplicationsAdmin() {
         >
           <div className="space-y-4">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
-              <input className="field" placeholder="Filtrar por nome ou e-mail" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} />
-              <select className="field min-w-56" value={bulkProfileId} onChange={(event) => setBulkProfileId(event.target.value)}>
-                <option value="">Nao autorizado</option>
-                {editableProfiles(activeApplication.roles).filter((profile) => profile.ativo).map((profile) => (
-                  <option key={profile.id} value={profile.id}>{profile.nome}</option>
-                ))}
-              </select>
+              <FieldGroup label="Filtro">
+                <input className="field" placeholder="Maria Souza" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} />
+              </FieldGroup>
+              <FieldGroup label="Perfil" description="Aplicado aos selecionados.">
+                <select className="field min-w-56" value={bulkProfileId} onChange={(event) => setBulkProfileId(event.target.value)}>
+                  <option value="">Nao autorizado</option>
+                  {editableProfiles(activeApplication.roles).filter((profile) => profile.ativo).map((profile) => (
+                    <option key={profile.id} value={profile.id}>{profile.nome}</option>
+                  ))}
+                </select>
+              </FieldGroup>
               <button className="btn-secondary" type="button" onClick={applyBulkProfile} disabled={selectedUsers.size === 0}>
                 Aplicar aos selecionados
               </button>
