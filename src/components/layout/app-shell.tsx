@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { BrandMark } from "@/components/layout/brand-mark";
 import { apiFetch } from "@/lib/api/client-fetch";
 import type { UserResponseDTO } from "@/lib/api/types";
+import { InstallPromptCard } from "@/components/pwa/install-prompt-card";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export function AppShell({
@@ -74,6 +75,7 @@ export function AppShell({
         </header>
         {children}
       </div>
+      <InstallPromptCard />
     </main>
   );
 }

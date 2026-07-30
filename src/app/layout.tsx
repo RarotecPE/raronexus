@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { BRAND_ICON_URL } from "@/lib/brand";
 import { EnvironmentBanner } from "@/components/layout/environment-banner";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,6 +36,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-slate-950 text-slate-100 flex flex-col">
+        <ServiceWorkerRegister />
         <EnvironmentBanner />
         {children}
       </body>
