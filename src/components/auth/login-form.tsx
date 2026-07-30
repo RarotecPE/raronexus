@@ -23,6 +23,14 @@ export function LoginForm() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cpf, password }),
     });
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (!contentType.includes("application/json")) {
+      setMessage(`Resposta invalida da API (${response.status}). Verifique se o servidor do Nexus esta correto.`);
+      setLoading(false);
+      return;
+    }
+
     const payload = await response.json();
 
     if (!payload.success) {

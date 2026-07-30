@@ -103,6 +103,28 @@ function Modal({
   );
 }
 
+function FieldGroup({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="grid gap-1.5 text-sm font-medium text-slate-200">
+      <span>{label}</span>
+      {description ? (
+        <span className="text-xs font-normal leading-relaxed text-slate-400">
+          {description}
+        </span>
+      ) : null}
+      {children}
+    </label>
+  );
+}
+
 export function UsersAdmin() {
   const router = useRouter();
   const [me, setMe] = useState<UserResponseDTO | null>(null);
@@ -205,7 +227,7 @@ export function UsersAdmin() {
     setLoadingPlatforms(true);
     setAlert(null);
     try {
-      const data = await apiFetch<UserApplicationAccessDTO[]>(`/api/v1/users/${user.id}/applications`);
+      const data = await apiFetch<UserApplicationAccessDTO[]>(`/api/v1/user-applications/${user.id}`);
       setPlatforms(data);
       setPlatformDraft(Object.fromEntries(data.map((platform) => [
         platform.application_id,
@@ -303,7 +325,7 @@ export function UsersAdmin() {
     setAlert(null);
     setResendingInviteId(user.id);
     try {
-      await apiFetch<UserResponseDTO>(`/api/v1/users/${user.id}/invite`, { method: "POST" });
+      await apiFetch<UserResponseDTO>(`/api/v1/user-invites/${user.id}`, { method: "POST" });
       setAlert({
         message: "E-mail de confirmacao e definicao de senha reenviado.",
         type: "success",
@@ -367,7 +389,7 @@ export function UsersAdmin() {
     setSaving(true);
     setAlert(null);
     try {
-      const updated = await apiFetch<UserApplicationAccessDTO[]>(`/api/v1/users/${editing.id}/applications`, {
+      const updated = await apiFetch<UserApplicationAccessDTO[]>(`/api/v1/user-applications/${editing.id}`, {
         method: "PUT",
         body: JSON.stringify({
           assignments: platforms.map((platform) => ({
@@ -555,30 +577,37 @@ export function UsersAdmin() {
         >
           <form className="space-y-4" onSubmit={saveUser}>
             <div className="grid gap-3 md:grid-cols-2">
-              <input className="field" placeholder="Nome" value={draft.nome} onChange={(event) => setDraft({ ...draft, nome: event.target.value })} required />
-              <input className="field" placeholder="E-mail" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} required disabled={Boolean(editing)} />
+              <FieldGroup label="Nome">
+                <input className="field" placeholder="Maria Souza" value={draft.nome} onChange={(event) => setDraft({ ...draft, nome: event.target.value })} required />
+              </FieldGroup>
+              <FieldGroup label="E-mail">
+                <input className="field" placeholder="maria@empresa.com" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} required disabled={Boolean(editing)} />
+              </FieldGroup>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <input
-                className="field"
-                placeholder="CPF"
-                value={draft.cpf}
-                onChange={(event) => setDraft({ ...draft, cpf: formatCpf(event.target.value) })}
-                required
-                inputMode="numeric"
-                maxLength={14}
-              />
-              <input
-                className="field"
-                placeholder="Telefone"
-                value={draft.telefone}
-                onChange={(event) => setDraft({ ...draft, telefone: formatPhone(event.target.value) })}
-                inputMode="tel"
-                maxLength={15}
-              />
+              <FieldGroup label="CPF" description="Usado para login.">
+                <input
+                  className="field"
+                  placeholder="000.000.000-00"
+                  value={draft.cpf}
+                  onChange={(event) => setDraft({ ...draft, cpf: formatCpf(event.target.value) })}
+                  required
+                  inputMode="numeric"
+                  maxLength={14}
+                />
+              </FieldGroup>
+              <FieldGroup label="Telefone">
+                <input
+                  className="field"
+                  placeholder="(11) 99999-9999"
+                  value={draft.telefone}
+                  onChange={(event) => setDraft({ ...draft, telefone: formatPhone(event.target.value) })}
+                  inputMode="tel"
+                  maxLength={15}
+                />
+              </FieldGroup>
             </div>
-            <label className="grid gap-2 text-sm font-medium text-slate-200">
-              Avatar
+            <FieldGroup label="Avatar">
               <input
                 className="field"
                 type="file"
@@ -591,7 +620,7 @@ export function UsersAdmin() {
                   {avatarFile?.name ?? "Avatar atual mantido"}
                 </span>
               ) : null}
-            </label>
+            </FieldGroup>
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm text-slate-200">
                 <input type="checkbox" checked={draft.ativo} onChange={(event) => setDraft({ ...draft, ativo: event.target.checked })} />
@@ -627,13 +656,17 @@ export function UsersAdmin() {
         >
           <div className="space-y-4">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
-              <input className="field" placeholder="Filtrar por plataforma" value={platformSearch} onChange={(event) => setPlatformSearch(event.target.value)} />
-              <select className="field min-w-56" value={bulkProfileKey} onChange={(event) => setBulkProfileKey(event.target.value)}>
-                <option value="nao_autorizado">Nao autorizado</option>
-                {bulkProfileOptions.map((profile) => (
-                  <option key={profile.chave} value={profile.chave}>{profile.nome}</option>
-                ))}
-              </select>
+              <FieldGroup label="Filtro">
+                <input className="field" placeholder="RaroStock" value={platformSearch} onChange={(event) => setPlatformSearch(event.target.value)} />
+              </FieldGroup>
+              <FieldGroup label="Perfil" description="Aplicado as selecionadas.">
+                <select className="field min-w-56" value={bulkProfileKey} onChange={(event) => setBulkProfileKey(event.target.value)}>
+                  <option value="nao_autorizado">Nao autorizado</option>
+                  {bulkProfileOptions.map((profile) => (
+                    <option key={profile.chave} value={profile.chave}>{profile.nome}</option>
+                  ))}
+                </select>
+              </FieldGroup>
               <button className="btn-secondary" type="button" onClick={applyBulkProfile} disabled={selectedPlatforms.size === 0}>
                 Aplicar aos selecionados
               </button>

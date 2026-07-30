@@ -153,7 +153,7 @@ export const openApiSpec = {
         responses: { "200": { description: "Usuario desativado" } },
       },
     },
-    "/users/{id}/invite": {
+    "/user-invites/{id}": {
       post: {
         summary: "Reenviar convite de cadastro pendente",
         tags: ["Users"],
@@ -163,6 +163,20 @@ export const openApiSpec = {
           "200": { description: "Convite reenviado" },
           "409": { description: "Cadastro ja confirmado" },
         },
+      },
+    },
+    "/user-applications/{id}": {
+      get: {
+        summary: "Listar plataformas e perfis de um usuario",
+        tags: ["Users"],
+        security: [{ bearerAuth: [] }],
+        responses: { "200": { description: "Acessos do usuario" } },
+      },
+      put: {
+        summary: "Atualizar perfis de um usuario nas plataformas",
+        tags: ["Users"],
+        security: [{ bearerAuth: [] }],
+        responses: { "200": { description: "Acessos atualizados" } },
       },
     },
     "/applications": {
