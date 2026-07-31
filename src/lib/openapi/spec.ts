@@ -81,6 +81,68 @@ export const openApiSpec = {
         },
       },
     },
+    "/sso/token": {
+      post: {
+        summary: "Trocar authorization code por dados SSO",
+        tags: ["SSO"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["grant_type", "client_id", "client_secret", "code", "redirect_uri"],
+                properties: {
+                  grant_type: { type: "string", enum: ["authorization_code"] },
+                  client_id: { type: "string" },
+                  client_secret: { type: "string" },
+                  code: { type: "string" },
+                  redirect_uri: { type: "string", format: "uri" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Dados de usuario, aplicacao e perfil",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: {
+                      type: "object",
+                      properties: {
+                        token_type: { type: "string" },
+                        expires_in: { type: "number" },
+                        user: {
+                          type: "object",
+                          properties: {
+                            id: { type: "string", format: "uuid" },
+                            nome: { type: "string" },
+                            email: { type: "string", format: "email" },
+                            avatar_url: {
+                              type: "string",
+                              format: "uri",
+                              nullable: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "400": { description: "Codigo invalido ou expirado" },
+          "401": { description: "Credenciais da aplicacao invalidas" },
+          "403": { description: "Acesso nao autorizado" },
+        },
+      },
+    },
     "/users/me": {
       get: {
         summary: "Consultar usuario autenticado",
