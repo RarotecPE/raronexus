@@ -25,6 +25,11 @@ Identity Provider corporativo baseado em Next.js, TypeScript, Tailwind CSS e Sup
 3. Aplique a migration em `supabase/migrations/20260724165000_raronexus_identity.sql` no projeto Supabase.
 4. Crie pelo menos um usuario inicial no Supabase Auth e um registro correspondente em `public.users` com `is_admin = true`.
 
+No Supabase Auth, configure o `Site URL` com a URL publica do Nexus e adicione estas URLs em `Redirect URLs`:
+
+- `https://raronexus.vercel.app/set-password`
+- `https://raronexus.vercel.app/reset-password`
+
 ## Desenvolvimento
 
 ```bash
