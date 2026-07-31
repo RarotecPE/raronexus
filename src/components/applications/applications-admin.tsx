@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { apiFetch } from "@/lib/api/client-fetch";
 import type {
   ApplicationAssignmentDTO,
@@ -730,9 +731,12 @@ export function ApplicationsAdmin() {
                       onChange={() => toggleUserSelection(assignment.user_id)}
                       aria-label={`Selecionar ${assignment.nome}`}
                     />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-white">{assignment.nome}</p>
-                      <p className="truncate text-xs text-slate-400">{assignment.email}</p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <UserAvatar src={assignment.avatar_url} name={assignment.nome} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-white">{assignment.nome}</p>
+                        <p className="truncate text-xs text-slate-400">{assignment.email}</p>
+                      </div>
                     </div>
                     <select
                       className="field"

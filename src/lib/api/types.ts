@@ -109,6 +109,7 @@ export type ApplicationAssignmentDTO = {
   user_id: string;
   nome: string;
   email: string;
+  avatar_url?: string | null;
   role_id: string | null;
   role_chave: string;
   role_nome: string;

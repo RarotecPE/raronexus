@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppWindow,
   Edit3,
@@ -17,6 +17,8 @@ import {
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
+import { AvatarCropper } from "@/components/ui/avatar-cropper";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { uploadAvatar } from "@/lib/avatar-upload";
 import { apiFetch } from "@/lib/api/client-fetch";
 import { formatCpf, formatPhone } from "@/lib/formatters";
@@ -137,6 +139,9 @@ export function UsersAdmin() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
+  const avatarPreviewRef = useRef("");
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
   const [platforms, setPlatforms] = useState<UserApplicationAccessDTO[]>([]);
   const [platformDraft, setPlatformDraft] = useState<Record<string, string>>({});
@@ -181,11 +186,32 @@ export function UsersAdmin() {
     });
   }, [loadUsers]);
 
+  useEffect(() => () => {
+    if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current);
+  }, []);
+
+  function clearAvatarPreview() {
+    if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current);
+    avatarPreviewRef.current = "";
+    setAvatarPreviewUrl("");
+  }
+
+  function setCroppedAvatar(file: File) {
+    clearAvatarPreview();
+    const objectUrl = URL.createObjectURL(file);
+    avatarPreviewRef.current = objectUrl;
+    setAvatarFile(file);
+    setAvatarPreviewUrl(objectUrl);
+    setAvatarCropFile(null);
+  }
+
   function closeModal() {
     setModalMode(null);
     setEditing(null);
     setDraft(emptyDraft);
     setAvatarFile(null);
+    setAvatarCropFile(null);
+    clearAvatarPreview();
     setPlatforms([]);
     setPlatformDraft({});
     setPlatformSearch("");
@@ -198,6 +224,8 @@ export function UsersAdmin() {
     setEditing(null);
     setDraft(emptyDraft);
     setAvatarFile(null);
+    setAvatarCropFile(null);
+    clearAvatarPreview();
     setModalMode("edit");
   }
 
@@ -213,6 +241,8 @@ export function UsersAdmin() {
       is_admin: user.is_admin ?? false,
     });
     setAvatarFile(null);
+    setAvatarCropFile(null);
+    clearAvatarPreview();
     setModalMode("edit");
   }
 
@@ -522,7 +552,12 @@ export function UsersAdmin() {
               ) : (
                 users.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-900/70">
-                    <td className="px-5 py-4 font-medium text-white">{user.nome}</td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <UserAvatar src={user.avatar_url} name={user.nome} />
+                        <span className="font-medium text-white">{user.nome}</span>
+                      </div>
+                    </td>
                     <td className="px-5 py-4 text-slate-300">{user.email}</td>
                     <td className="px-5 py-4">
                       <span className={getStatusClassName(user)}>
@@ -612,13 +647,27 @@ export function UsersAdmin() {
                 className="field"
                 type="file"
                 accept="image/*"
-                onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  event.currentTarget.value = "";
+                  if (file) setAvatarCropFile(file);
+                }}
               />
               {draft.avatar_url || avatarFile ? (
                 <span className="flex items-center gap-2 text-xs font-normal text-cyan-200">
                   <Upload size={14} aria-hidden="true" />
-                  {avatarFile?.name ?? "Avatar atual mantido"}
+                  {avatarFile ? `${avatarFile.name} pronto para envio` : "Avatar atual mantido"}
                 </span>
+              ) : null}
+              {avatarPreviewUrl || draft.avatar_url ? (
+                <div className="mt-2 h-24 w-24 overflow-hidden rounded-lg border border-cyan-400/20 bg-slate-950">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={avatarPreviewUrl || draft.avatar_url}
+                    alt="Previa do avatar"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
               ) : null}
             </FieldGroup>
             <div className="flex flex-wrap gap-4">
@@ -644,6 +693,14 @@ export function UsersAdmin() {
             </div>
           </form>
         </Modal>
+      ) : null}
+
+      {avatarCropFile ? (
+        <AvatarCropper
+          file={avatarCropFile}
+          onCancel={() => setAvatarCropFile(null)}
+          onCrop={setCroppedAvatar}
+        />
       ) : null}
 
       {modalMode === "platforms" && editing ? (
