@@ -60,6 +60,10 @@ function getStatusLabel(user: UserResponseDTO) {
   return status === "ativo" ? "Ativo" : "Inativo";
 }
 
+function getUserDisplayName(user: UserResponseDTO) {
+  return user.nome || "Cadastro pendente";
+}
+
 function getStatusClassName(user: UserResponseDTO) {
   const status = getUserStatus(user);
   if (status === "pendente") return "text-amber-300";
@@ -245,7 +249,7 @@ export function UsersAdmin() {
   function openEditModal(user: UserResponseDTO) {
     setEditing(user);
     setDraft({
-      nome: user.nome,
+      nome: user.nome ?? "",
       email: user.email,
       cpf: user.cpf ?? "",
       telefone: user.telefone ?? "",
@@ -291,10 +295,6 @@ export function UsersAdmin() {
     setSaving(true);
     setAlert(null);
     try {
-      if (!editing && !draft.cpf) {
-        throw new Error("Informe o CPF para cadastrar o usuario.");
-      }
-
       if (editing) {
         const avatarUrl = avatarFile
           ? await uploadAvatar(avatarFile, editing.id)
@@ -313,21 +313,16 @@ export function UsersAdmin() {
         });
         setAlert({ message: "Usuario atualizado.", type: "success" });
       } else {
-        const created = await apiFetch<UserResponseDTO>("/api/v1/users", {
+        await apiFetch<UserResponseDTO>("/api/v1/users", {
           method: "POST",
-          body: JSON.stringify(draft),
+          body: JSON.stringify({
+            email: draft.email,
+            is_admin: draft.is_admin,
+          }),
         });
 
-        if (avatarFile) {
-          const avatarUrl = await uploadAvatar(avatarFile, created.id);
-          await apiFetch<UserResponseDTO>(`/api/v1/users/${created.id}`, {
-            method: "PUT",
-            body: JSON.stringify({ avatar_url: avatarUrl }),
-          });
-        }
-
         setAlert({
-          message: "Usuario criado. Enviamos um e-mail para completar o cadastro.",
+          message: "Convite enviado. O usuario completara o cadastro pelo e-mail.",
           type: "success",
         });
       }
@@ -558,8 +553,8 @@ export function UsersAdmin() {
                   <tr key={user.id} className="hover:bg-slate-900/70">
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <UserAvatar src={user.avatar_url} name={user.nome} />
-                        <span className="font-medium text-white">{user.nome}</span>
+                        <UserAvatar src={user.avatar_url} name={getUserDisplayName(user)} />
+                        <span className="font-medium text-white">{getUserDisplayName(user)}</span>
                       </div>
                     </td>
                     <td className="px-5 py-4 text-slate-300">{user.email}</td>
@@ -610,75 +605,85 @@ export function UsersAdmin() {
       {modalMode === "edit" ? (
         <Modal
           title={editing ? "Editar usuario" : "Criar usuario"}
-          description={editing ? "Dados cadastrais e permissoes administrativas do Nexus." : "O usuario define a senha por e-mail."}
+          description={editing ? "Dados cadastrais e permissoes administrativas do Nexus." : "O usuario completara os dados pelo e-mail."}
           icon={editing ? <Save size={19} aria-hidden="true" /> : <Plus size={19} aria-hidden="true" />}
           onClose={closeModal}
         >
           <form className="space-y-4" onSubmit={saveUser}>
-            <div className="grid gap-3 md:grid-cols-2">
-              <FieldGroup label="Nome">
-                <input className="field" placeholder="Maria Souza" value={draft.nome} onChange={(event) => setDraft({ ...draft, nome: event.target.value })} required />
-              </FieldGroup>
-              <FieldGroup label="E-mail">
-                <input className="field" placeholder="maria@empresa.com" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} required disabled={Boolean(editing)} />
-              </FieldGroup>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <FieldGroup label="CPF" description="Usado para login.">
-                <input
-                  className="field"
-                  placeholder="000.000.000-00"
-                  value={draft.cpf}
-                  onChange={(event) => setDraft({ ...draft, cpf: formatCpf(event.target.value) })}
-                  required
-                  inputMode="numeric"
-                  maxLength={14}
-                />
-              </FieldGroup>
-              <FieldGroup label="Telefone">
-                <input
-                  className="field"
-                  placeholder="(11) 99999-9999"
-                  value={draft.telefone}
-                  onChange={(event) => setDraft({ ...draft, telefone: formatPhone(event.target.value) })}
-                  inputMode="tel"
-                  maxLength={15}
-                />
-              </FieldGroup>
-            </div>
-            <FieldGroup label="Avatar">
-              <input
-                className="field"
-                type="file"
-                accept="image/*"
-                onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null;
-                  event.currentTarget.value = "";
-                  if (file) setAvatarCropFile(file);
-                }}
-              />
-              {draft.avatar_url || avatarFile ? (
-                <span className="flex items-center gap-2 text-xs font-normal text-cyan-200">
-                  <Upload size={14} aria-hidden="true" />
-                  {avatarFile ? `${avatarFile.name} pronto para envio` : "Avatar atual mantido"}
-                </span>
-              ) : null}
-              {avatarPreviewUrl || draft.avatar_url ? (
-                <div className="mt-2 h-24 w-24 overflow-hidden rounded-lg border border-cyan-400/20 bg-slate-950">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={avatarPreviewUrl || draft.avatar_url}
-                    alt="Previa do avatar"
-                    className="h-full w-full object-cover"
-                  />
+            {editing ? (
+              <>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <FieldGroup label="Nome">
+                    <input className="field" placeholder="Maria Souza" value={draft.nome} onChange={(event) => setDraft({ ...draft, nome: event.target.value })} required />
+                  </FieldGroup>
+                  <FieldGroup label="E-mail">
+                    <input className="field" placeholder="maria@empresa.com" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} required disabled />
+                  </FieldGroup>
                 </div>
-              ) : null}
-            </FieldGroup>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <FieldGroup label="CPF" description="Usado para login.">
+                    <input
+                      className="field"
+                      placeholder="000.000.000-00"
+                      value={draft.cpf}
+                      onChange={(event) => setDraft({ ...draft, cpf: formatCpf(event.target.value) })}
+                      required
+                      inputMode="numeric"
+                      maxLength={14}
+                    />
+                  </FieldGroup>
+                  <FieldGroup label="Telefone">
+                    <input
+                      className="field"
+                      placeholder="(11) 99999-9999"
+                      value={draft.telefone}
+                      onChange={(event) => setDraft({ ...draft, telefone: formatPhone(event.target.value) })}
+                      inputMode="tel"
+                      maxLength={15}
+                    />
+                  </FieldGroup>
+                </div>
+                <FieldGroup label="Avatar">
+                  <input
+                    className="field"
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      event.currentTarget.value = "";
+                      if (file) setAvatarCropFile(file);
+                    }}
+                  />
+                  {draft.avatar_url || avatarFile ? (
+                    <span className="flex items-center gap-2 text-xs font-normal text-cyan-200">
+                      <Upload size={14} aria-hidden="true" />
+                      {avatarFile ? `${avatarFile.name} pronto para envio` : "Avatar atual mantido"}
+                    </span>
+                  ) : null}
+                  {avatarPreviewUrl || draft.avatar_url ? (
+                    <div className="mt-2 h-24 w-24 overflow-hidden rounded-lg border border-cyan-400/20 bg-slate-950">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={avatarPreviewUrl || draft.avatar_url}
+                        alt="Previa do avatar"
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ) : null}
+                </FieldGroup>
+              </>
+            ) : (
+              <FieldGroup label="E-mail">
+                <input className="field" placeholder="maria@empresa.com" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} required />
+              </FieldGroup>
+            )}
             <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-sm text-slate-200">
-                <input type="checkbox" checked={draft.ativo} onChange={(event) => setDraft({ ...draft, ativo: event.target.checked })} />
-                Usuario ativo
-              </label>
+              {editing ? (
+                <label className="flex items-center gap-2 text-sm text-slate-200">
+                  <input type="checkbox" checked={draft.ativo} onChange={(event) => setDraft({ ...draft, ativo: event.target.checked })} />
+                  Usuario ativo
+                </label>
+              ) : null}
               <label className="flex items-center gap-2 text-sm text-slate-200">
                 <input type="checkbox" checked={draft.is_admin} onChange={(event) => setDraft({ ...draft, is_admin: event.target.checked })} />
                 <ShieldCheck size={16} aria-hidden="true" />
@@ -689,7 +694,7 @@ export function UsersAdmin() {
             <div className="flex flex-wrap gap-2 pt-2">
               <button className="btn-primary" disabled={saving} type="submit">
                 <Save size={17} aria-hidden="true" />
-                {saving ? "Salvando..." : editing ? "Salvar" : "Criar"}
+                {saving ? "Salvando..." : editing ? "Salvar" : "Enviar convite"}
               </button>
               <button className="btn-secondary" type="button" onClick={closeModal}>
                 Cancelar
@@ -710,7 +715,7 @@ export function UsersAdmin() {
       {modalMode === "platforms" && editing ? (
         <Modal
           title="Plataformas"
-          description={`Atribua perfis de usuario para ${editing.nome}.`}
+          description={`Atribua perfis de usuario para ${getUserDisplayName(editing)}.`}
           icon={<AppWindow size={19} aria-hidden="true" />}
           onClose={closeModal}
           maxWidth="max-w-5xl"

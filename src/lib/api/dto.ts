@@ -10,7 +10,9 @@ import type {
 
 export function toUserDTO(
   user: UserRow,
-  cadastroStatus: UserResponseDTO["cadastro_status"] = user.ativo ? "ativo" : "inativo",
+  cadastroStatus: UserResponseDTO["cadastro_status"] = !user.nome || !user.cpf
+    ? "pendente"
+    : user.ativo ? "ativo" : "inativo",
 ): UserResponseDTO {
   return {
     id: user.id,

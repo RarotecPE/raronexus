@@ -127,7 +127,7 @@ export class SsoService {
       },
       user: {
         id: user.id,
-        nome: user.nome,
+        nome: user.nome ?? user.email,
         email: user.email,
         avatar_url: user.avatar_url,
       },

@@ -4,17 +4,24 @@ import { FormEvent, useEffect, useState } from "react";
 import { KeyRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api/client-fetch";
+import { formatCpf } from "@/lib/formatters";
+import type { UserResponseDTO } from "@/lib/api/types";
 
 type ResetPasswordFormProps = {
   submitLabel?: string;
   successMessage?: string;
+  completeRegistration?: boolean;
 };
 
 export function ResetPasswordForm({
   submitLabel = "Atualizar senha",
   successMessage = "Senha atualizada com sucesso.",
+  completeRegistration = false,
 }: ResetPasswordFormProps) {
   const router = useRouter();
+  const [nome, setNome] = useState("");
+  const [cpf, setCpf] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
@@ -32,6 +39,11 @@ export function ResetPasswordForm({
       return;
     }
 
+    if (completeRegistration && (!nome.trim() || cpf.length !== 14)) {
+      setMessage("Informe nome e CPF para concluir o cadastro.");
+      return;
+    }
+
     setLoading(true);
     const supabase = createBrowserSupabaseClient();
     const { error } = await supabase.auth.updateUser({ password });
@@ -41,6 +53,19 @@ export function ResetPasswordForm({
       return;
     }
 
+    if (completeRegistration) {
+      try {
+        await apiFetch<UserResponseDTO>("/api/v1/users/me/complete-registration", {
+          method: "PUT",
+          body: JSON.stringify({ nome: nome.trim(), cpf }),
+        });
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Erro ao completar cadastro.");
+        setLoading(false);
+        return;
+      }
+    }
+
     setMessage(successMessage);
     setLoading(false);
     router.replace("/login");
@@ -48,6 +73,43 @@ export function ResetPasswordForm({
 
   return (
     <form className="space-y-4" onSubmit={onSubmit}>
+      {completeRegistration ? (
+        <>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="nome">
+              Nome
+            </label>
+            <input
+              id="nome"
+              className="field"
+              type="text"
+              autoComplete="name"
+              value={nome}
+              onChange={(event) => setNome(event.target.value)}
+              required
+              minLength={2}
+              maxLength={150}
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="cpf">
+              CPF
+            </label>
+            <input
+              id="cpf"
+              className="field"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="000.000.000-00"
+              value={cpf}
+              onChange={(event) => setCpf(formatCpf(event.target.value))}
+              required
+              maxLength={14}
+            />
+          </div>
+        </>
+      ) : null}
       <div>
         <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="password">
           Nova senha

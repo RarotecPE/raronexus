@@ -12,7 +12,7 @@ export type ApiError = {
 export type UserRow = {
   id: string;
   auth_user_id: string;
-  nome: string;
+  nome: string | null;
   email: string;
   cpf: string | null;
   telefone: string | null;
@@ -128,7 +128,7 @@ export type UserApplicationAccessDTO = {
 
 export type UserResponseDTO = {
   id: string;
-  nome: string;
+  nome: string | null;
   email: string;
   cpf?: string | null;
   telefone?: string | null;
