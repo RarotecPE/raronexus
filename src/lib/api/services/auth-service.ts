@@ -38,7 +38,7 @@ export class AuthService {
       refresh_token: data.session.refresh_token,
       user: {
         id: profile.id,
-        nome: profile.nome,
+        nome: profile.nome ?? profile.email,
         email: profile.email,
       },
     };

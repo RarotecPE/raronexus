@@ -186,7 +186,7 @@ export class ApplicationService {
 
       return {
         user_id: user.id,
-        nome: user.nome,
+        nome: user.nome ?? "Cadastro pendente",
         email: user.email,
         avatar_url: user.avatar_url,
         role_id: role?.chave === UNAUTHORIZED_ROLE.chave ? null : role?.id ?? null,

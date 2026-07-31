@@ -6,7 +6,19 @@ import { UserRepository } from "../repositories/user-repository";
 import { ApplicationService } from "./application-service";
 import type { AuthenticatedContext } from "../types";
 import type { z } from "zod";
-import type { createUserSchema, profileSchema, updateUserSchema } from "../validators/user";
+import type {
+  completeRegistrationSchema,
+  createUserSchema,
+  profileSchema,
+  updateUserSchema,
+} from "../validators/user";
+
+function isUniqueCpfError(error: unknown) {
+  return typeof error === "object"
+    && error !== null
+    && "code" in error
+    && error.code === "23505";
+}
 
 export class UserService {
   private readonly admin = createAdminSupabaseClient();
@@ -24,13 +36,22 @@ export class UserService {
     return `${appUrl.replace(/\/$/, "")}/set-password`;
   }
 
-  private async getCadastroStatus(user: { auth_user_id: string; ativo: boolean }) {
+  private async getCadastroStatus(user: {
+    auth_user_id: string;
+    ativo: boolean;
+    nome?: string | null;
+    cpf?: string | null;
+  }) {
     const { data, error } = await this.admin.auth.admin.getUserById(user.auth_user_id);
     if (error || !data.user) {
       throw new ApiException(error?.message ?? "Usuario de autenticacao nao encontrado.", "AUTH_USER_NOT_FOUND", 404);
     }
 
     if (!data.user.email_confirmed_at && !data.user.confirmed_at) {
+      return "pendente" as const;
+    }
+
+    if (!user.nome || !user.cpf) {
       return "pendente" as const;
     }
 
@@ -81,7 +102,6 @@ export class UserService {
     const inviteRedirectTo = this.getInviteRedirectTo(requestUrl);
 
     const { data, error } = await this.admin.auth.admin.inviteUserByEmail(input.email, {
-      data: { nome: input.nome },
       redirectTo: inviteRedirectTo,
     });
 
@@ -91,12 +111,12 @@ export class UserService {
 
     const user = await this.users.create({
       auth_user_id: data.user.id,
-      nome: input.nome,
+      nome: null,
       email: input.email,
-      cpf: input.cpf || null,
-      telefone: input.telefone || null,
-      avatar_url: input.avatar_url || null,
-      ativo: input.ativo ?? true,
+      cpf: null,
+      telefone: null,
+      avatar_url: null,
+      ativo: true,
       is_admin: input.is_admin ?? false,
     });
 
@@ -106,6 +126,32 @@ export class UserService {
     });
 
     return toUserDTO(user);
+  }
+
+  async completeRegistration(context: AuthenticatedContext, input: z.infer<typeof completeRegistrationSchema>) {
+    if (!context.profile) {
+      throw new ApiException("Perfil complementar nao encontrado.", "PROFILE_NOT_FOUND", 404);
+    }
+
+    try {
+      const updated = await this.users.update(context.profile.id, {
+        nome: input.nome,
+        cpf: input.cpf,
+      });
+
+      await this.audit.log({
+        user_id: updated.id,
+        event: "cadastro_concluido",
+      });
+
+      return toUserDTO(updated);
+    } catch (error) {
+      if (isUniqueCpfError(error)) {
+        throw new ApiException("CPF ja cadastrado para outro usuario.", "CPF_ALREADY_EXISTS", 409);
+      }
+
+      throw error;
+    }
   }
 
   async resendInvite(context: AuthenticatedContext, id: string, requestUrl: string) {
@@ -119,7 +165,6 @@ export class UserService {
     }
 
     const { error } = await this.admin.auth.admin.inviteUserByEmail(user.email, {
-      data: { nome: user.nome },
       redirectTo: this.getInviteRedirectTo(requestUrl),
     });
 

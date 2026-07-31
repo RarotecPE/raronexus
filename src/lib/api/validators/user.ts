@@ -9,19 +9,18 @@ export const loginSchema = z.object({
   password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres."),
 });
 
-export const createUserSchema = z.object({
-  nome: z.string().min(2).max(150),
+const cpfSchema = z
+  .string()
+  .min(14, "Informe um CPF completo.")
+  .max(14)
+  .regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "Informe um CPF valido.");
+
+export const inviteUserSchema = z.object({
   email: z.email().max(255),
-  cpf: z
-    .string()
-    .min(14, "Informe um CPF completo.")
-    .max(14)
-    .regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "Informe um CPF valido."),
-  telefone: z.string().max(20).optional().nullable(),
-  avatar_url: z.url().optional().nullable().or(z.literal("")),
-  ativo: z.boolean().optional(),
   is_admin: z.boolean().optional(),
 });
+
+export const createUserSchema = inviteUserSchema;
 
 export const updateUserSchema = z.object({
   nome: z.string().min(2).max(150).optional(),
@@ -36,4 +35,9 @@ export const profileSchema = z.object({
   nome: z.string().min(2).max(150),
   telefone: z.string().max(20).optional().nullable(),
   avatar_url: z.url().optional().nullable().or(z.literal("")),
+});
+
+export const completeRegistrationSchema = z.object({
+  nome: z.string().min(2, "Informe seu nome.").max(150),
+  cpf: cpfSchema,
 });

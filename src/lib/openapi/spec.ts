@@ -27,7 +27,7 @@ export const openApiSpec = {
         type: "object",
         properties: {
           id: { type: "string", format: "uuid" },
-          nome: { type: "string" },
+          nome: { type: "string", nullable: true },
           email: { type: "string", format: "email" },
           ativo: { type: "boolean" },
           cadastro_status: { type: "string", enum: ["ativo", "inativo", "pendente"] },
@@ -166,7 +166,7 @@ export const openApiSpec = {
         responses: { "200": { description: "Lista de usuarios" } },
       },
       post: {
-        summary: "Criar usuario e enviar convite de cadastro",
+        summary: "Convidar usuario por e-mail",
         tags: ["Users"],
         security: [{ bearerAuth: [] }],
         requestBody: {
@@ -175,14 +175,9 @@ export const openApiSpec = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["nome", "email", "cpf"],
+                required: ["email"],
                 properties: {
-                  nome: { type: "string" },
                   email: { type: "string", format: "email" },
-                  cpf: { type: "string" },
-                  telefone: { type: "string" },
-                  avatar_url: { type: "string", format: "uri" },
-                  ativo: { type: "boolean" },
                   is_admin: { type: "boolean" },
                 },
               },
@@ -190,6 +185,32 @@ export const openApiSpec = {
           },
         },
         responses: { "201": { description: "Usuario criado" } },
+      },
+    },
+    "/users/me/complete-registration": {
+      put: {
+        summary: "Completar cadastro do usuario autenticado",
+        tags: ["Users"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["nome", "cpf"],
+                properties: {
+                  nome: { type: "string" },
+                  cpf: { type: "string", example: "000.000.000-00" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Cadastro concluido" },
+          "409": { description: "CPF ja cadastrado" },
+        },
       },
     },
     "/users/{id}": {

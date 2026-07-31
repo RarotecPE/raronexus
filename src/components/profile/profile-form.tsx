@@ -31,7 +31,7 @@ export function ProfileForm() {
     apiFetch<UserResponseDTO>("/api/v1/users/me")
       .then((data) => {
         setUser(data);
-        setNome(data.nome);
+        setNome(data.nome ?? "");
         setTelefone(data.telefone ?? "");
         setAvatarUrl(data.avatar_url ?? "");
       })
