@@ -188,6 +188,7 @@ export class ApplicationService {
         user_id: user.id,
         nome: user.nome,
         email: user.email,
+        avatar_url: user.avatar_url,
         role_id: role?.chave === UNAUTHORIZED_ROLE.chave ? null : role?.id ?? null,
         role_chave: role?.chave ?? UNAUTHORIZED_ROLE.chave,
         role_nome: role?.nome ?? UNAUTHORIZED_ROLE.nome,

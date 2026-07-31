@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import Image from "next/image";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { KeyRound, Save, Upload, UserRound } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { AvatarCropper } from "@/components/ui/avatar-cropper";
 import { uploadAvatar } from "@/lib/avatar-upload";
 import { apiFetch } from "@/lib/api/client-fetch";
 import { formatPhone } from "@/lib/formatters";
@@ -16,6 +16,9 @@ export function ProfileForm() {
   const [telefone, setTelefone] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
+  const avatarPreviewRef = useRef("");
   const [message, setMessage] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -36,6 +39,19 @@ export function ProfileForm() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => () => {
+    if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current);
+  }, []);
+
+  function setCroppedAvatar(file: File) {
+    if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current);
+    const objectUrl = URL.createObjectURL(file);
+    avatarPreviewRef.current = objectUrl;
+    setAvatarFile(file);
+    setAvatarPreviewUrl(objectUrl);
+    setAvatarCropFile(null);
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -52,6 +68,9 @@ export function ProfileForm() {
       setUser(updated);
       setAvatarUrl(updated.avatar_url ?? "");
       setAvatarFile(null);
+      if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current);
+      avatarPreviewRef.current = "";
+      setAvatarPreviewUrl("");
       setMessage("Perfil atualizado com sucesso.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro ao salvar perfil.");
@@ -131,12 +150,16 @@ export function ProfileForm() {
                     className="field"
                     type="file"
                     accept="image/*"
-                    onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      event.currentTarget.value = "";
+                      if (file) setAvatarCropFile(file);
+                    }}
                   />
                   {avatarFile ? (
                     <p className="mt-2 flex items-center gap-2 text-sm text-cyan-200">
                       <Upload size={15} aria-hidden="true" />
-                      {avatarFile.name}
+                      {avatarFile.name} pronto para envio
                     </p>
                   ) : null}
                 </div>
@@ -209,13 +232,12 @@ export function ProfileForm() {
         </div>
 
         <aside className="panel h-fit p-5">
-          {avatarUrl ? (
+          {avatarPreviewUrl || avatarUrl ? (
             <div className="mb-5 overflow-hidden rounded-lg border border-cyan-400/20 bg-slate-950">
-              <Image
-                src={avatarUrl}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={avatarPreviewUrl || avatarUrl}
                 alt={`Foto de ${user?.nome ?? "usuario"}`}
-                width={320}
-                height={320}
                 className="aspect-square w-full object-cover"
               />
             </div>
@@ -239,6 +261,13 @@ export function ProfileForm() {
           </dl>
         </aside>
       </section>
+      {avatarCropFile ? (
+        <AvatarCropper
+          file={avatarCropFile}
+          onCancel={() => setAvatarCropFile(null)}
+          onCrop={setCroppedAvatar}
+        />
+      ) : null}
     </AppShell>
   );
 }

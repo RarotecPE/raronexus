@@ -10,6 +10,7 @@ export function BrandMark() {
         width={176}
         height={44}
         className="h-11 w-auto object-contain"
+        style={{ width: "auto" }}
         priority
       />
     </div>
