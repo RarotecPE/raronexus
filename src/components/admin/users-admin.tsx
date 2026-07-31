@@ -9,7 +9,6 @@ import {
   Power,
   RefreshCw,
   Save,
-  Search,
   ShieldCheck,
   Upload,
   X,
@@ -149,6 +148,7 @@ export function UsersAdmin() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
   const [bulkProfileKey, setBulkProfileKey] = useState("nao_autorizado");
   const [loadingPlatforms, setLoadingPlatforms] = useState(false);
+  const didRunInitialSearch = useRef(false);
 
   const isAdmin = Boolean(me?.is_admin);
   const activeCount = useMemo(
@@ -156,7 +156,7 @@ export function UsersAdmin() {
     [users],
   );
 
-  const loadUsers = useCallback(async (query = search) => {
+  const loadUsers = useCallback(async (query = "") => {
     setLoading(true);
     try {
       const suffix = query ? `?search=${encodeURIComponent(query)}` : "";
@@ -178,13 +178,26 @@ export function UsersAdmin() {
     } finally {
       setLoading(false);
     }
-  }, [router, search]);
+  }, [router]);
 
   useEffect(() => {
     queueMicrotask(() => {
       void loadUsers("");
     });
   }, [loadUsers]);
+
+  useEffect(() => {
+    if (!didRunInitialSearch.current) {
+      didRunInitialSearch.current = true;
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void loadUsers(search);
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [loadUsers, search]);
 
   useEffect(() => () => {
     if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current);
@@ -496,23 +509,14 @@ export function UsersAdmin() {
             </p>
           </div>
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <form
-              className="flex min-w-0 flex-1 gap-2 sm:flex-none"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void loadUsers(search);
-              }}
-            >
+            <div className="flex min-w-0 flex-1 sm:flex-none">
               <input
                 className="field min-w-0 sm:w-72"
                 placeholder="Pesquisar por nome ou e-mail"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
-              <button className="btn-secondary px-3" type="submit" title="Pesquisar">
-                <Search size={17} aria-hidden="true" />
-              </button>
-            </form>
+            </div>
             <button className="btn-secondary px-3" type="button" onClick={() => void loadUsers()} title="Recarregar">
               <RefreshCw size={17} aria-hidden="true" />
             </button>
@@ -529,7 +533,7 @@ export function UsersAdmin() {
           <table className="w-full min-w-[880px] text-left text-sm">
             <thead className="bg-slate-950/70 text-xs uppercase tracking-[0.14em] text-slate-400">
               <tr>
-                <th className="px-5 py-3">Nome</th>
+                <th className="px-5 py-3 pl-[4.25rem]">Nome</th>
                 <th className="px-5 py-3">E-mail</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3">Admin</th>
