@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
+import { ApplicationLogo } from "@/components/applications/application-logo";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
 import { AvatarCropper } from "@/components/ui/avatar-cropper";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -760,11 +761,18 @@ export function UsersAdmin() {
                       onChange={() => togglePlatformSelection(platform.application_id)}
                       aria-label={`Selecionar ${platform.application_nome}`}
                     />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-white">{platform.application_nome}</p>
-                      <p className="truncate text-xs text-slate-400">
-                        {platform.application_client_id} - {platform.application_ativo ? "Ativa" : "Inativa"}
-                      </p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <ApplicationLogo
+                        name={platform.application_nome}
+                        logoUrl={platform.application_logo_url}
+                        size="sm"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-white">{platform.application_nome}</p>
+                        <p className="truncate text-xs text-slate-400">
+                          {platform.application_client_id} - {platform.application_ativo ? "Ativa" : "Inativa"}
+                        </p>
+                      </div>
                     </div>
                     <select
                       className="field"

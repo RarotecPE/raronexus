@@ -1,21 +1,26 @@
 "use client";
 
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AppWindow,
+  BadgeCheck,
   Edit3,
   ExternalLink,
+  Globe2,
   KeyRound,
+  MonitorSmartphone,
   Plus,
   RefreshCw,
   Save,
   ShieldCheck,
+  Upload,
   UsersRound,
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { ApplicationLogo } from "@/components/applications/application-logo";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { uploadApplicationLogo } from "@/lib/application-logo-upload";
 import { apiFetch } from "@/lib/api/client-fetch";
 import type {
   ApplicationAssignmentDTO,
@@ -36,6 +41,7 @@ type DraftApplication = {
   nome: string;
   descricao: string;
   client_id: string;
+  logo_url: string;
   homepage_url: string;
   redirect_uris: string;
   allowed_origins: string;
@@ -49,6 +55,7 @@ const emptyApplicationDraft: DraftApplication = {
   nome: "",
   descricao: "",
   client_id: "",
+  logo_url: "",
   homepage_url: "",
   redirect_uris: "",
   allowed_origins: "",
@@ -94,11 +101,36 @@ function applicationToDraft(application: ApplicationResponseDTO): DraftApplicati
     nome: application.nome,
     descricao: application.descricao ?? "",
     client_id: application.client_id,
+    logo_url: application.logo_url ?? "",
     homepage_url: application.homepage_url ?? "",
     redirect_uris: arrayToLines(application.redirect_uris),
     allowed_origins: arrayToLines(application.allowed_origins),
     ativo: application.ativo,
   };
+}
+
+function getApplicationHost(homepageUrl?: string | null) {
+  if (!homepageUrl) return null;
+
+  try {
+    return new URL(homepageUrl).host;
+  } catch {
+    return null;
+  }
+}
+
+function StatusBadge({ active }: { active: boolean }) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${
+      active
+        ? "border-emerald-400/25 bg-emerald-950/25 text-emerald-100"
+        : "border-rose-400/25 bg-rose-950/25 text-rose-100"
+    }`}
+    >
+      <BadgeCheck size={14} aria-hidden="true" />
+      {active ? "Disponivel" : "Indisponivel"}
+    </span>
+  );
 }
 
 function Modal({
@@ -168,6 +200,9 @@ export function ApplicationsAdmin() {
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [applicationDraft, setApplicationDraft] = useState<DraftApplication>(emptyApplicationDraft);
   const [profileDrafts, setProfileDrafts] = useState<DraftProfile[]>([]);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState("");
+  const logoPreviewRef = useRef("");
   const [assignments, setAssignments] = useState<ApplicationAssignmentDTO[]>([]);
   const [assignmentDraft, setAssignmentDraft] = useState<Record<string, string>>({});
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
@@ -209,11 +244,31 @@ export function ApplicationsAdmin() {
     });
   }, [loadApplications]);
 
+  useEffect(() => () => {
+    if (logoPreviewRef.current) URL.revokeObjectURL(logoPreviewRef.current);
+  }, []);
+
+  function clearLogoPreview() {
+    if (logoPreviewRef.current) URL.revokeObjectURL(logoPreviewRef.current);
+    logoPreviewRef.current = "";
+    setLogoPreviewUrl("");
+  }
+
+  function setSelectedLogo(file: File) {
+    clearLogoPreview();
+    const objectUrl = URL.createObjectURL(file);
+    logoPreviewRef.current = objectUrl;
+    setLogoFile(file);
+    setLogoPreviewUrl(objectUrl);
+  }
+
   function closeModal() {
     setModalMode(null);
     setActiveApplication(null);
     setApplicationDraft(emptyApplicationDraft);
     setProfileDrafts([]);
+    setLogoFile(null);
+    clearLogoPreview();
     setAssignments([]);
     setAssignmentDraft({});
     setSelectedUsers(new Set());
@@ -225,12 +280,16 @@ export function ApplicationsAdmin() {
   function openCreateModal() {
     setActiveApplication(null);
     setApplicationDraft(emptyApplicationDraft);
+    setLogoFile(null);
+    clearLogoPreview();
     setModalMode("edit");
   }
 
   function openEditModal(application: ApplicationResponseDTO) {
     setActiveApplication(application);
     setApplicationDraft(applicationToDraft(application));
+    setLogoFile(null);
+    clearLogoPreview();
     setModalMode("edit");
   }
 
@@ -293,6 +352,7 @@ export function ApplicationsAdmin() {
       nome: applicationDraft.nome,
       descricao: applicationDraft.descricao,
       client_id: applicationDraft.client_id,
+      logo_url: applicationDraft.logo_url,
       homepage_url: applicationDraft.homepage_url,
       redirect_uris: linesToArray(applicationDraft.redirect_uris),
       allowed_origins: linesToArray(applicationDraft.allowed_origins),
@@ -319,6 +379,17 @@ export function ApplicationsAdmin() {
           method: "POST",
           body: JSON.stringify(payload),
         });
+
+      if (logoFile) {
+        const logoUrl = await uploadApplicationLogo(logoFile, saved.id);
+        await apiFetch<ApplicationResponseDTO>(`/api/v1/applications/${saved.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            ...payload,
+            logo_url: logoUrl,
+          }),
+        });
+      }
 
       setAlert({
         message: activeApplication ? "Plataforma atualizada." : "Plataforma cadastrada.",
@@ -496,29 +567,52 @@ export function ApplicationsAdmin() {
                 key={application.id}
                 className="rounded-lg border border-slate-700/70 bg-slate-950/45 p-4 transition hover:border-cyan-400/45 hover:bg-slate-900/70"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <AppWindow size={18} className="text-cyan-200" aria-hidden="true" />
-                      <h2 className="font-semibold text-white">{application.nome}</h2>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex min-w-0 gap-3">
+                    <ApplicationLogo name={application.nome} logoUrl={application.logo_url} />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="font-semibold text-white">{application.nome}</h2>
+                        <StatusBadge active={application.ativo} />
+                      </div>
+                      <p className="mt-1 text-sm text-slate-400">{application.descricao || application.client_id}</p>
+                      {application.homepage_url ? (
+                        <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                          <Globe2 size={14} aria-hidden="true" />
+                          {getApplicationHost(application.homepage_url) ?? application.homepage_url}
+                        </p>
+                      ) : null}
                     </div>
-                    <p className="mt-1 text-sm text-slate-400">{application.descricao || application.client_id}</p>
                   </div>
-                  <span className={application.ativo ? "text-sm text-emerald-300" : "text-sm text-rose-300"}>
-                    {application.ativo ? "Ativa" : "Inativa"}
-                  </span>
+
+                  {!isAdmin && application.homepage_url ? (
+                    <a className="btn-primary w-full justify-center lg:w-fit" href={application.homepage_url} target="_blank" rel="noreferrer">
+                      <ExternalLink size={17} aria-hidden="true" />
+                      Abrir plataforma
+                    </a>
+                  ) : null}
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
                   {application.user_role ? (
-                    <span className="rounded-md border border-cyan-400/25 bg-cyan-950/35 px-2 py-1 text-cyan-100">
-                      {application.user_role.nome}
+                    <span className="rounded-md border border-cyan-400/25 bg-cyan-950/35 px-2 py-1 font-medium text-cyan-100">
+                      Perfil: {application.user_role.nome}
                     </span>
                   ) : null}
+                  {application.homepage_url ? (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-950/40 px-2 py-1">
+                      <MonitorSmartphone size={14} aria-hidden="true" />
+                      App web instalavel
+                    </span>
+                  ) : (
+                    <span className="rounded-md border border-amber-400/25 bg-amber-950/20 px-2 py-1 text-amber-100">
+                      Sem URL inicial
+                    </span>
+                  )}
                   {isAdmin ? (
                     <>
                       <span className="rounded-md border border-slate-700 px-2 py-1">
-                        {application.client_id}
+                        ID: {application.client_id}
                       </span>
                       <span className="rounded-md border border-slate-700 px-2 py-1">
                         {editableProfiles(application.roles).length} perfis de usuarios
@@ -546,6 +640,12 @@ export function ApplicationsAdmin() {
 
                 {isAdmin ? (
                   <div className="mt-4 flex flex-wrap gap-2">
+                    {application.homepage_url ? (
+                      <a className="btn-primary min-h-9 px-3 py-1.5" href={application.homepage_url} target="_blank" rel="noreferrer">
+                        <ExternalLink size={15} aria-hidden="true" />
+                        Abrir
+                      </a>
+                    ) : null}
                     <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={() => openEditModal(application)}>
                       <Edit3 size={15} aria-hidden="true" />
                       Editar
@@ -559,11 +659,6 @@ export function ApplicationsAdmin() {
                       Usuarios
                     </button>
                   </div>
-                ) : application.homepage_url ? (
-                  <a className="btn-primary mt-4 w-fit" href={application.homepage_url} target="_blank" rel="noreferrer">
-                    <ExternalLink size={17} aria-hidden="true" />
-                    Abrir plataforma
-                  </a>
                 ) : null}
               </article>
             ))
@@ -590,6 +685,30 @@ export function ApplicationsAdmin() {
             <FieldGroup label="Descricao">
               <textarea className="field min-h-24" placeholder="Controle interno de estoque" value={applicationDraft.descricao} onChange={(event) => setApplicationDraft({ ...applicationDraft, descricao: event.target.value })} />
             </FieldGroup>
+            <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+              <FieldGroup label="Logo" description="Imagem exibida nos cards e acessos.">
+                <input
+                  className="field"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    event.currentTarget.value = "";
+                    if (file) setSelectedLogo(file);
+                  }}
+                />
+                {logoFile ? (
+                  <span className="flex items-center gap-2 text-xs font-normal text-cyan-200">
+                    <Upload size={14} aria-hidden="true" />
+                    {logoFile.name} pronto para envio
+                  </span>
+                ) : null}
+              </FieldGroup>
+              <div className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-950/45 p-3">
+                <ApplicationLogo name={applicationDraft.nome || "Aplicacao"} logoUrl={logoPreviewUrl || applicationDraft.logo_url} />
+                <span className="text-xs text-slate-400">Previa</span>
+              </div>
+            </div>
             <FieldGroup label="URL inicial" description="Endereco do botao Abrir plataforma.">
               <input className="field" placeholder="https://rarostock.rarotec.com" type="url" value={applicationDraft.homepage_url} onChange={(event) => setApplicationDraft({ ...applicationDraft, homepage_url: event.target.value })} />
             </FieldGroup>
@@ -631,7 +750,7 @@ export function ApplicationsAdmin() {
         <Modal
           title="Perfis de Usuarios"
           description={`Configure os perfis da plataforma ${activeApplication.nome}.`}
-          icon={<ShieldCheck size={19} aria-hidden="true" />}
+          icon={<ApplicationLogo name={activeApplication.nome} logoUrl={activeApplication.logo_url} size="sm" />}
           onClose={closeModal}
         >
           <form onSubmit={saveProfiles} className="space-y-4">
@@ -687,7 +806,7 @@ export function ApplicationsAdmin() {
         <Modal
           title="Usuarios"
           description={`Atribua perfis de usuarios para ${activeApplication.nome}.`}
-          icon={<UsersRound size={19} aria-hidden="true" />}
+          icon={<ApplicationLogo name={activeApplication.nome} logoUrl={activeApplication.logo_url} size="sm" />}
           onClose={closeModal}
           maxWidth="max-w-5xl"
         >

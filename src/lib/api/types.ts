@@ -29,6 +29,7 @@ export type ApplicationRow = {
   descricao: string | null;
   client_id: string;
   client_secret: string;
+  logo_url: string | null;
   homepage_url: string | null;
   redirect_uris: string[];
   allowed_origins: string[];
@@ -84,6 +85,7 @@ export type ApplicationResponseDTO = {
   descricao?: string | null;
   client_id: string;
   client_secret?: string;
+  logo_url?: string | null;
   homepage_url?: string | null;
   redirect_uris?: string[];
   allowed_origins?: string[];
@@ -119,6 +121,7 @@ export type UserApplicationAccessDTO = {
   application_id: string;
   application_nome: string;
   application_client_id: string;
+  application_logo_url?: string | null;
   application_ativo: boolean;
   role_id: string | null;
   role_chave: string;

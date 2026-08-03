@@ -63,6 +63,7 @@ export function toApplicationDTO(
     descricao: application.descricao,
     client_id: application.client_id,
     ...(options.includeSecret ? { client_secret: application.client_secret } : {}),
+    logo_url: application.logo_url,
     homepage_url: application.homepage_url,
     redirect_uris: application.redirect_uris,
     allowed_origins: application.allowed_origins,
