@@ -11,6 +11,7 @@ import { formatCpf } from "@/lib/formatters";
 import type { UserResponseDTO } from "@/lib/api/types";
 
 const REGISTRATION_FLOW_KEY = "raronexus-complete-registration-flow";
+const RECOVERY_FLOW_KEY = "raronexus-reset-password-flow";
 const PASSWORD_FLOW_TYPES = new Set(["invite", "signup"]);
 const RECOVERY_FLOW_TYPES = new Set(["recovery"]);
 
@@ -44,7 +45,7 @@ export function ResetPasswordForm({
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingFlow, setCheckingFlow] = useState(completeRegistration);
-  const [flowAllowed, setFlowAllowed] = useState(!completeRegistration);
+  const [flowAllowed, setFlowAllowed] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
@@ -71,8 +72,21 @@ export function ResetPasswordForm({
     }
 
     if (flowType && RECOVERY_FLOW_TYPES.has(flowType)) {
-      void supabase.auth.getSession();
+      sessionStorage.setItem(RECOVERY_FLOW_KEY, "true");
+    } else {
+      sessionStorage.removeItem(RECOVERY_FLOW_KEY);
     }
+
+    supabase.auth.getSession().then(({ data }) => {
+      const hasRecoveryFlow = sessionStorage.getItem(RECOVERY_FLOW_KEY) === "true";
+      const allowed = Boolean(data.session && hasRecoveryFlow);
+      setFlowAllowed(allowed);
+      setCheckingFlow(false);
+
+      if (!allowed) {
+        setMessage("Link invalido ou expirado. Solicite uma nova redefinicao de senha.");
+      }
+    });
   }, [completeRegistration]);
 
   useEffect(() => {
@@ -94,8 +108,12 @@ export function ResetPasswordForm({
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (completeRegistration && !flowAllowed) {
-      setMessage("Link invalido ou expirado. Acesse pelo e-mail de confirmacao.");
+    if (!flowAllowed) {
+      setMessage(
+        completeRegistration
+          ? "Link invalido ou expirado. Acesse pelo e-mail de confirmacao."
+          : "Link invalido ou expirado. Solicite uma nova redefinicao de senha.",
+      );
       return;
     }
 
@@ -142,6 +160,8 @@ export function ResetPasswordForm({
     setMessage(successMessage);
     if (completeRegistration) {
       sessionStorage.removeItem(REGISTRATION_FLOW_KEY);
+    } else {
+      sessionStorage.removeItem(RECOVERY_FLOW_KEY);
     }
     setLoading(false);
     router.replace("/login");
@@ -150,16 +170,20 @@ export function ResetPasswordForm({
   if (checkingFlow) {
     return (
       <p className="rounded-lg border border-cyan-400/30 bg-cyan-950/40 px-3 py-2 text-sm text-cyan-100">
-        Validando link de cadastro...
+        {completeRegistration ? "Validando link de cadastro..." : "Validando link de redefinicao..."}
       </p>
     );
   }
 
-  if (completeRegistration && !flowAllowed) {
+  if (!flowAllowed) {
     return (
       <div className="space-y-4">
         <p className="rounded-lg border border-rose-400/30 bg-rose-950/40 px-3 py-2 text-sm text-rose-100">
-          {message || "Link invalido ou expirado. Acesse pelo e-mail de confirmacao."}
+          {message || (
+            completeRegistration
+              ? "Link invalido ou expirado. Acesse pelo e-mail de confirmacao."
+              : "Link invalido ou expirado. Solicite uma nova redefinicao de senha."
+          )}
         </p>
         <button className="btn-secondary w-full" type="button" onClick={() => router.replace("/login")}>
           Ir para login
