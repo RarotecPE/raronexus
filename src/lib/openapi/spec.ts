@@ -202,6 +202,7 @@ export const openApiSpec = {
                 properties: {
                   nome: { type: "string" },
                   cpf: { type: "string", example: "000.000.000-00" },
+                  avatar_url: { type: "string", format: "uri" },
                 },
               },
             },

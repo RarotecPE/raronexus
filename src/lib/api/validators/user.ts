@@ -40,4 +40,5 @@ export const profileSchema = z.object({
 export const completeRegistrationSchema = z.object({
   nome: z.string().min(2, "Informe seu nome.").max(150),
   cpf: cpfSchema,
+  avatar_url: z.url().optional().nullable().or(z.literal("")),
 });

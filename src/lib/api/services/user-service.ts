@@ -137,6 +137,7 @@ export class UserService {
       const updated = await this.users.update(context.profile.id, {
         nome: input.nome,
         cpf: input.cpf,
+        avatar_url: input.avatar_url || null,
       });
 
       await this.audit.log({
