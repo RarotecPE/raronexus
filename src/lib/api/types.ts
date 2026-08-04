@@ -83,6 +83,7 @@ export type SsoAuthorizationCodeRow = {
   redirect_uri: string;
   expires_at: string;
   consumed_at?: string | null;
+  global_session_id?: string | null;
   created_at?: string;
 };
 
@@ -158,6 +159,21 @@ export type UserResponseDTO = {
   updated_at?: string;
 };
 
+export type GlobalSessionRow = {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  session_key: string;
+  origin: string | null;
+  user_agent: string | null;
+  ip_address: string | null;
+  issued_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+};
+
 export type UserListItemDTO = UserResponseDTO & {
   record_type: "user" | "invite";
   invite_status?: "pending" | "expired";
@@ -188,4 +204,5 @@ export type AuthenticatedContext = {
   authUserId: string;
   email: string;
   profile: UserRow | null;
+  globalSessionId?: string;
 };

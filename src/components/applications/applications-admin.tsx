@@ -119,6 +119,16 @@ function getApplicationHost(homepageUrl?: string | null) {
   }
 }
 
+function getApplicationOpenUrl(application: ApplicationResponseDTO) {
+  if (!application.homepage_url) return "";
+
+  try {
+    return new URL("/api/auth/raronexus/start", application.homepage_url).toString();
+  } catch {
+    return application.homepage_url;
+  }
+}
+
 function StatusBadge({ active }: { active: boolean }) {
   return (
     <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${
@@ -586,7 +596,7 @@ export function ApplicationsAdmin() {
                   </div>
 
                   {!isAdmin && application.homepage_url ? (
-                    <a className="btn-primary w-full justify-center lg:w-fit" href={application.homepage_url} target="_blank" rel="noreferrer">
+                    <a className="btn-primary w-full justify-center lg:w-fit" href={getApplicationOpenUrl(application)} target="_blank" rel="noreferrer">
                       <ExternalLink size={17} aria-hidden="true" />
                       Abrir plataforma
                     </a>
@@ -641,7 +651,7 @@ export function ApplicationsAdmin() {
                 {isAdmin ? (
                   <div className="mt-4 flex flex-wrap gap-2">
                     {application.homepage_url ? (
-                      <a className="btn-primary min-h-9 px-3 py-1.5" href={application.homepage_url} target="_blank" rel="noreferrer">
+                      <a className="btn-primary min-h-9 px-3 py-1.5" href={getApplicationOpenUrl(application)} target="_blank" rel="noreferrer">
                         <ExternalLink size={15} aria-hidden="true" />
                         Abrir
                       </a>

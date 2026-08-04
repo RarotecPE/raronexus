@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { AppWindow, LogOut, UserRound, UsersRound } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BrandMark } from "@/components/layout/brand-mark";
-import { apiFetch } from "@/lib/api/client-fetch";
+import { apiFetch, isAuthFetchError } from "@/lib/api/client-fetch";
 import type { UserResponseDTO } from "@/lib/api/types";
 import { InstallPromptCard } from "@/components/pwa/install-prompt-card";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -19,25 +19,41 @@ export function AppShell({
 }) {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  const redirectToLogin = useCallback(async () => {
+    const supabase = createBrowserSupabaseClient();
+    await supabase.auth.signOut();
+    router.replace("/login");
+  }, [router]);
 
   useEffect(() => {
     let active = true;
 
     apiFetch<UserResponseDTO>("/api/v1/users/me")
       .then((user) => {
-        if (active) setIsAdmin(Boolean(user.is_admin));
+        if (!active) return;
+        setIsAdmin(Boolean(user.is_admin));
+        setCheckingSession(false);
       })
-      .catch(() => {
-        if (active) setIsAdmin(false);
+      .catch((error) => {
+        if (!active) return;
+        if (isAuthFetchError(error)) {
+          void redirectToLogin();
+          return;
+        }
+        setIsAdmin(false);
+        setCheckingSession(false);
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [redirectToLogin]);
 
   async function signOut() {
     const supabase = createBrowserSupabaseClient();
+    await fetch("/api/v1/auth/logout", { method: "POST" }).catch(() => null);
     await supabase.auth.signOut();
     router.push("/login");
   }
@@ -73,7 +89,11 @@ export function AppShell({
             </button>
           </nav>
         </header>
-        {children}
+        {checkingSession ? (
+          <section className="panel p-6 text-sm text-slate-300">
+            Validando sessao...
+          </section>
+        ) : children}
       </div>
       <InstallPromptCard />
     </main>

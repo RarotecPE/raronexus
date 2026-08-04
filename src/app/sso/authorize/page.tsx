@@ -19,6 +19,7 @@ export default function SsoAuthorizePage() {
       if (params.get("prompt") === "login") {
         params.delete("prompt");
         const nextPath = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+        await fetch("/api/v1/auth/logout", { method: "POST" }).catch(() => null);
         await supabase.auth.signOut();
         window.location.replace(`/login?next=${encodeURIComponent(nextPath)}`);
         return;
@@ -26,11 +27,6 @@ export default function SsoAuthorizePage() {
 
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-
-      if (!token) {
-        router.replace(`/login?next=${encodeURIComponent(currentUrl)}`);
-        return;
-      }
 
       const requestPayload = {
         client_id: params.get("client_id") ?? "",
@@ -42,7 +38,7 @@ export default function SsoAuthorizePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(requestPayload),
       });
@@ -51,6 +47,11 @@ export default function SsoAuthorizePage() {
       if (!active) return;
 
       if (!payload.success) {
+        if (response.status === 401) {
+          router.replace(`/login?next=${encodeURIComponent(currentUrl)}`);
+          return;
+        }
+
         setMessage(payload.message ?? "Nao foi possivel autorizar o acesso.");
         return;
       }

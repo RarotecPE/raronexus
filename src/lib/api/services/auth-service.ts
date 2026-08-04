@@ -1,5 +1,6 @@
 import { ApiException, friendlyAuthError } from "../errors";
 import { UserRepository } from "../repositories/user-repository";
+import { GlobalSessionService } from "./global-session-service";
 import type { AuthenticatedContext } from "../types";
 import { createAdminSupabaseClient, createAnonSupabaseClient } from "@/lib/supabase/server";
 
@@ -45,6 +46,9 @@ export class AuthService {
   }
 
   async authenticate(request: Request): Promise<AuthenticatedContext> {
+    const globalSessionContext = await new GlobalSessionService().authenticateFromCookie(request);
+    if (globalSessionContext) return globalSessionContext;
+
     const header = request.headers.get("authorization");
     const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
 

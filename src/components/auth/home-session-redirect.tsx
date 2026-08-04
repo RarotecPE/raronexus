@@ -36,9 +36,18 @@ export function HomeSessionRedirect() {
       const supabase = createBrowserSupabaseClient();
       const { data } = await supabase.auth.getSession();
 
-      if (active && data.session) {
+      const response = await fetch("/api/v1/users/me", {
+        headers: data.session?.access_token
+          ? { Authorization: `Bearer ${data.session.access_token}` }
+          : undefined,
+      });
+
+      if (active && response.ok) {
         router.replace("/applications");
+        return;
       }
+
+      if (data.session) await supabase.auth.signOut();
     }
 
     void redirectAuthenticatedUser();

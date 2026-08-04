@@ -5,6 +5,7 @@ import { ApiException } from "../errors";
 import { ApplicationRepository } from "../repositories/application-repository";
 import { SsoRepository } from "../repositories/sso-repository";
 import { UserRepository } from "../repositories/user-repository";
+import { GlobalSessionService } from "./global-session-service";
 import type { AuthenticatedContext } from "../types";
 
 const CODE_TTL_MS = 2 * 60 * 1000;
@@ -75,6 +76,7 @@ export class SsoService {
       role_id: role.id,
       redirect_uri: input.redirect_uri,
       expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString(),
+      global_session_id: context.globalSessionId ?? null,
     });
 
     return {
@@ -117,9 +119,12 @@ export class SsoService {
       throw new ApiException("Acesso nao autorizado.", "ACCESS_DENIED", 403);
     }
 
+    const globalSessionToken = await new GlobalSessionService().createRelatedToken(code.global_session_id, user);
+
     return {
       token_type: "raronexus_sso",
       expires_in: 60 * 60 * 8,
+      global_session_token: globalSessionToken,
       application: {
         id: application.id,
         client_id: application.client_id,

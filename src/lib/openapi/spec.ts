@@ -82,6 +82,60 @@ export const openApiSpec = {
         },
       },
     },
+    "/auth/logout": {
+      post: {
+        summary: "Encerrar sessao global",
+        tags: ["Auth"],
+        responses: {
+          "200": { description: "Sessao global revogada e cookie local limpo" },
+        },
+      },
+    },
+    "/sessions/introspect": {
+      post: {
+        summary: "Validar sessao global para uma aplicacao",
+        tags: ["Auth"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["token", "client_id"],
+                properties: {
+                  token: { type: "string" },
+                  client_id: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Sessao ativa com usuario e perfil da aplicacao" },
+          "401": { description: "Sessao invalida ou encerrada" },
+          "403": { description: "Acesso nao autorizado" },
+        },
+      },
+    },
+    "/sessions/revoke": {
+      post: {
+        summary: "Revogar sessao global",
+        tags: ["Auth"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["token"],
+                properties: { token: { type: "string" } },
+              },
+            },
+          },
+        },
+        responses: { "200": { description: "Sessao revogada" } },
+      },
+    },
     "/sso/token": {
       post: {
         summary: "Trocar authorization code por dados SSO",
@@ -118,6 +172,7 @@ export const openApiSpec = {
                       properties: {
                         token_type: { type: "string" },
                         expires_in: { type: "number" },
+                        global_session_token: { type: "string" },
                         user: {
                           type: "object",
                           properties: {
