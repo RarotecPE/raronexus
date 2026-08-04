@@ -28,6 +28,17 @@ export class UserRepository {
     return data;
   }
 
+  async findByEmail(email: string) {
+    const { data, error } = await this.supabase
+      .from(TABLE)
+      .select("*")
+      .ilike("email", email)
+      .maybeSingle<UserRow>();
+
+    if (error) throw error;
+    return data;
+  }
+
   async findByCpf(cpf: string) {
     const digits = cpf.replace(/\D/g, "");
     const { data, error } = await this.supabase
@@ -83,5 +94,26 @@ export class UserRepository {
 
     if (error) throw error;
     return data;
+  }
+
+  async countActiveAdminsExcept(id: string) {
+    const { count, error } = await this.supabase
+      .from(TABLE)
+      .select("id", { count: "exact", head: true })
+      .eq("ativo", true)
+      .eq("is_admin", true)
+      .neq("id", id);
+
+    if (error) throw error;
+    return count ?? 0;
+  }
+
+  async remove(id: string) {
+    const { error } = await this.supabase
+      .from(TABLE)
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
   }
 }

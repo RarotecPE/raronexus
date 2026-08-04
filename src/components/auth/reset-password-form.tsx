@@ -6,13 +6,11 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api/client-fetch";
 import { AvatarCropper } from "@/components/ui/avatar-cropper";
-import { uploadAvatar } from "@/lib/avatar-upload";
+import { uploadInviteAvatar } from "@/lib/avatar-upload";
 import { formatCpf } from "@/lib/formatters";
-import type { UserResponseDTO } from "@/lib/api/types";
+import type { PublicInviteDTO, UserResponseDTO } from "@/lib/api/types";
 
-const REGISTRATION_FLOW_KEY = "raronexus-complete-registration-flow";
 const RECOVERY_FLOW_KEY = "raronexus-reset-password-flow";
-const PASSWORD_FLOW_TYPES = new Set(["invite", "signup"]);
 const RECOVERY_FLOW_TYPES = new Set(["recovery"]);
 
 type ResetPasswordFormProps = {
@@ -37,7 +35,8 @@ export function ResetPasswordForm({
   const router = useRouter();
   const [nome, setNome] = useState("");
   const [cpf, setCpf] = useState("");
-  const [userId, setUserId] = useState("");
+  const [inviteToken, setInviteToken] = useState("");
+  const [invite, setInvite] = useState<PublicInviteDTO | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
@@ -52,22 +51,29 @@ export function ResetPasswordForm({
     const flowType = getCurrentFlowType();
 
     if (completeRegistration) {
-      if (flowType && PASSWORD_FLOW_TYPES.has(flowType)) {
-        sessionStorage.setItem(REGISTRATION_FLOW_KEY, "true");
-      } else {
-        sessionStorage.removeItem(REGISTRATION_FLOW_KEY);
+      const searchParams = new URLSearchParams(window.location.search);
+      const token = searchParams.get("token") ?? "";
+
+      if (!token) {
+        queueMicrotask(() => {
+          setFlowAllowed(false);
+          setCheckingFlow(false);
+          setMessage("Link invalido ou expirado. Acesse pelo e-mail de convite.");
+        });
+        return;
       }
 
-      supabase.auth.getSession().then(({ data }) => {
-        const hasRegistrationFlow = sessionStorage.getItem(REGISTRATION_FLOW_KEY) === "true";
-        const allowed = Boolean(data.session && hasRegistrationFlow);
-        setFlowAllowed(allowed);
-        setCheckingFlow(false);
-
-        if (!allowed) {
-          setMessage("Link invalido ou expirado. Acesse pelo e-mail de confirmacao.");
-        }
-      });
+      apiFetch<PublicInviteDTO>(`/api/v1/user-invites/validate?token=${encodeURIComponent(token)}`)
+        .then((data) => {
+          setInviteToken(token);
+          setInvite(data);
+          setFlowAllowed(true);
+        })
+        .catch((error) => {
+          setFlowAllowed(false);
+          setMessage(error instanceof Error ? error.message : "Link invalido ou expirado.");
+        })
+        .finally(() => setCheckingFlow(false));
       return;
     }
 
@@ -89,29 +95,12 @@ export function ResetPasswordForm({
     });
   }, [completeRegistration]);
 
-  useEffect(() => {
-    if (!completeRegistration) return;
-
-    let active = true;
-    apiFetch<UserResponseDTO>("/api/v1/users/me")
-      .then((user) => {
-        if (active) setUserId(user.id);
-      })
-      .catch(() => {
-        if (active) setUserId("");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [completeRegistration]);
-
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!flowAllowed) {
       setMessage(
         completeRegistration
-          ? "Link invalido ou expirado. Acesse pelo e-mail de confirmacao."
+          ? "Link invalido ou expirado. Acesse pelo e-mail de convite."
           : "Link invalido ou expirado. Solicite uma nova redefinicao de senha.",
       );
       return;
@@ -128,25 +117,20 @@ export function ResetPasswordForm({
     }
 
     setLoading(true);
-    const supabase = createBrowserSupabaseClient();
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) {
-      setMessage(error.message);
-      setLoading(false);
-      return;
-    }
 
     if (completeRegistration) {
       try {
-        const avatarUrl = avatarFile && userId
-          ? await uploadAvatar(avatarFile, userId)
+        const avatarUrl = avatarFile
+          ? await uploadInviteAvatar(avatarFile, inviteToken)
           : null;
 
-        await apiFetch<UserResponseDTO>("/api/v1/users/me/complete-registration", {
-          method: "PUT",
+        await apiFetch<UserResponseDTO>("/api/v1/user-invites/complete", {
+          method: "POST",
           body: JSON.stringify({
+            token: inviteToken,
             nome: nome.trim(),
             cpf,
+            password,
             ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
           }),
         });
@@ -155,12 +139,18 @@ export function ResetPasswordForm({
         setLoading(false);
         return;
       }
+    } else {
+      const supabase = createBrowserSupabaseClient();
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        setMessage(error.message);
+        setLoading(false);
+        return;
+      }
     }
 
     setMessage(successMessage);
-    if (completeRegistration) {
-      sessionStorage.removeItem(REGISTRATION_FLOW_KEY);
-    } else {
+    if (!completeRegistration) {
       sessionStorage.removeItem(RECOVERY_FLOW_KEY);
     }
     setLoading(false);
@@ -181,7 +171,7 @@ export function ResetPasswordForm({
         <p className="rounded-lg border border-rose-400/30 bg-rose-950/40 px-3 py-2 text-sm text-rose-100">
           {message || (
             completeRegistration
-              ? "Link invalido ou expirado. Acesse pelo e-mail de confirmacao."
+              ? "Link invalido ou expirado. Acesse pelo e-mail de convite."
               : "Link invalido ou expirado. Solicite uma nova redefinicao de senha."
           )}
         </p>
@@ -197,6 +187,11 @@ export function ResetPasswordForm({
       <form className="space-y-4" onSubmit={onSubmit}>
         {completeRegistration ? (
           <>
+          {invite ? (
+            <p className="rounded-lg border border-cyan-400/30 bg-cyan-950/40 px-3 py-2 text-sm text-cyan-100">
+              Convite para {invite.email}
+            </p>
+          ) : null}
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-200" htmlFor="nome">
               Nome *

@@ -16,3 +16,12 @@ export async function POST(request: Request, { params }: Params) {
     return ok(await new UserService().resendInvite(context, id, request.url));
   });
 }
+
+export async function DELETE(request: Request, { params }: Params) {
+  return handleApi(async () => {
+    rateLimit(request, 40, 60_000);
+    const { id } = await params;
+    const context = await new AuthService().authenticate(request);
+    return ok(await new UserService().cancelInvite(context, id));
+  });
+}

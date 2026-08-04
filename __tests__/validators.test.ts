@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createUserSchema, loginSchema, profileSchema } from "@/lib/api/validators/user";
+import { completeInviteRegistrationSchema, createUserSchema, loginSchema, profileSchema } from "@/lib/api/validators/user";
 
 describe("api validators", () => {
   it("accepts valid login credentials", () => {
@@ -10,25 +10,34 @@ describe("api validators", () => {
     });
   });
 
-  it("accepts user creation without an initial password", () => {
+  it("accepts user invite creation with e-mail only", () => {
     assert.deepEqual(createUserSchema.parse({
-      nome: "Maria",
       email: "maria@empresa.com",
-      cpf: "123.456.789-10",
+      is_admin: true,
     }), {
-      nome: "Maria",
       email: "maria@empresa.com",
-      cpf: "123.456.789-10",
+      is_admin: true,
     });
   });
 
-  it("requires CPF for user creation", () => {
+  it("requires e-mail for user invite creation", () => {
     assert.throws(() => {
       createUserSchema.parse({
-        nome: "Maria",
-        email: "maria@empresa.com",
+        is_admin: false,
       });
     });
+  });
+
+  it("requires CPF and password when completing an invite", () => {
+    assert.equal(
+      completeInviteRegistrationSchema.parse({
+        token: "abcdefghijklmnopqrstuvwxyz123456",
+        nome: "Maria",
+        cpf: "123.456.789-10",
+        password: "secret1",
+      }).cpf,
+      "123.456.789-10",
+    );
   });
 
   it("accepts profile updates with optional avatar URL", () => {

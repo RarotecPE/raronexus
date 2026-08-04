@@ -185,7 +185,7 @@ export const openApiSpec = {
             },
           },
         },
-        responses: { "201": { description: "Usuario criado" } },
+        responses: { "201": { description: "Convite criado e enviado" } },
       },
     },
     "/users/me/complete-registration": {
@@ -231,11 +231,20 @@ export const openApiSpec = {
         responses: { "200": { description: "Usuario atualizado" } },
       },
       delete: {
-        summary: "Desativar usuario",
+        summary: "Excluir usuario definitivamente",
         tags: ["Users"],
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-        responses: { "200": { description: "Usuario desativado" } },
+        responses: { "200": { description: "Usuario excluido" } },
+      },
+    },
+    "/user-invites": {
+      get: {
+        summary: "Listar convites pendentes",
+        tags: ["Users"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "search", in: "query", schema: { type: "string" } }],
+        responses: { "200": { description: "Lista de convites pendentes e expirados" } },
       },
     },
     "/user-invites/{id}": {
@@ -248,6 +257,44 @@ export const openApiSpec = {
           "200": { description: "Convite reenviado" },
           "409": { description: "Cadastro ja confirmado" },
         },
+      },
+      delete: {
+        summary: "Cancelar convite pendente",
+        tags: ["Users"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Convite cancelado" } },
+      },
+    },
+    "/user-invites/{id}/resend": {
+      post: {
+        summary: "Reenviar convite pendente",
+        tags: ["Users"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Convite reenviado" } },
+      },
+    },
+    "/user-invites/validate": {
+      get: {
+        summary: "Validar token publico de convite",
+        tags: ["Users"],
+        parameters: [{ name: "token", in: "query", required: true, schema: { type: "string" } }],
+        responses: { "200": { description: "Convite valido" } },
+      },
+    },
+    "/user-invites/complete": {
+      post: {
+        summary: "Completar cadastro por convite",
+        tags: ["Users"],
+        responses: { "201": { description: "Usuario criado" } },
+      },
+    },
+    "/user-invites/avatar": {
+      post: {
+        summary: "Enviar avatar usando token de convite",
+        tags: ["Users"],
+        responses: { "200": { description: "Avatar enviado" } },
       },
     },
     "/user-applications/{id}": {

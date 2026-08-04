@@ -7,7 +7,7 @@ Identity Provider corporativo baseado em Next.js, TypeScript, Tailwind CSS e Sup
 - Login com Supabase Auth, JWT e refresh token.
 - Recuperacao e redefinicao de senha pelo fluxo padrao do Supabase.
 - Perfil do usuario autenticado.
-- Administracao de usuarios com criacao em `auth.users` e dados complementares em `public.users`.
+- Administracao de usuarios por convite, criando `auth.users` e `public.users` apenas ao concluir o cadastro.
 - API REST versionada em `/api/v1` com DTOs e resposta padronizada.
 - Swagger em `/swagger`.
 - Migrations SQL com RLS para usuarios, aplicacoes, relacao usuario-aplicacao e auditoria.
@@ -21,6 +21,12 @@ Identity Provider corporativo baseado em Next.js, TypeScript, Tailwind CSS e Sup
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `NEXT_PUBLIC_APP_URL`
+   - `SMTP_HOST`
+   - `SMTP_PORT`
+   - `SMTP_USER`
+   - `SMTP_PASSWORD`
+   - `SMTP_FROM_EMAIL`
+   - `SMTP_FROM_NAME`
    - `NEXT_PUBLIC_ENVIRONMENT_LABEL` opcional, por exemplo `HOMOLOGAÇÃO`, para exibir um aviso global em ambientes nao produtivos.
 3. Aplique a migration em `supabase/migrations/20260724165000_raronexus_identity.sql` no projeto Supabase.
 4. Crie pelo menos um usuario inicial no Supabase Auth e um registro correspondente em `public.users` com `is_admin = true`.

@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Save,
   ShieldCheck,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -22,7 +23,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { uploadAvatar } from "@/lib/avatar-upload";
 import { apiFetch } from "@/lib/api/client-fetch";
 import { formatCpf, formatPhone } from "@/lib/formatters";
-import type { UserApplicationAccessDTO, UserResponseDTO } from "@/lib/api/types";
+import type { UserApplicationAccessDTO, UserListItemDTO, UserResponseDTO } from "@/lib/api/types";
 
 type DraftUser = {
   nome: string;
@@ -55,7 +56,8 @@ function getUserStatus(user: UserResponseDTO) {
   return user.cadastro_status ?? (user.ativo ? "ativo" : "inativo");
 }
 
-function getStatusLabel(user: UserResponseDTO) {
+function getStatusLabel(user: UserResponseDTO | UserListItemDTO) {
+  if (isInvite(user) && user.invite_status === "expired") return "Expirado";
   const status = getUserStatus(user);
   if (status === "pendente") return "Pendente";
   return status === "ativo" ? "Ativo" : "Inativo";
@@ -65,7 +67,12 @@ function getUserDisplayName(user: UserResponseDTO) {
   return user.nome || "Cadastro pendente";
 }
 
-function getStatusClassName(user: UserResponseDTO) {
+function isInvite(user: UserListItemDTO | UserResponseDTO): user is UserListItemDTO & { record_type: "invite" } {
+  return "record_type" in user && user.record_type === "invite";
+}
+
+function getStatusClassName(user: UserResponseDTO | UserListItemDTO) {
+  if (isInvite(user) && user.invite_status === "expired") return "text-orange-300";
   const status = getUserStatus(user);
   if (status === "pendente") return "text-amber-300";
   return status === "ativo" ? "text-emerald-300" : "text-rose-300";
@@ -134,7 +141,7 @@ function FieldGroup({
 export function UsersAdmin() {
   const router = useRouter();
   const [me, setMe] = useState<UserResponseDTO | null>(null);
-  const [users, setUsers] = useState<UserResponseDTO[]>([]);
+  const [users, setUsers] = useState<UserListItemDTO[]>([]);
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<DraftUser>(emptyDraft);
   const [editing, setEditing] = useState<UserResponseDTO | null>(null);
@@ -173,7 +180,7 @@ export function UsersAdmin() {
         return;
       }
 
-      const loadedUsers = await apiFetch<UserResponseDTO[]>(`/api/v1/users${suffix}`);
+      const loadedUsers = await apiFetch<UserListItemDTO[]>(`/api/v1/users${suffix}`);
       setUsers(loadedUsers);
     } catch (error) {
       setAlert({
@@ -360,13 +367,14 @@ export function UsersAdmin() {
     }
   }
 
-  async function resendInvite(user: UserResponseDTO) {
+  async function resendInvite(user: UserListItemDTO) {
+    if (!isInvite(user)) return;
     setAlert(null);
     setResendingInviteId(user.id);
     try {
-      await apiFetch<UserResponseDTO>(`/api/v1/user-invites/${user.id}`, { method: "POST" });
+      await apiFetch(`/api/v1/user-invites/${user.id}/resend`, { method: "POST" });
       setAlert({
-        message: "E-mail de confirmacao e definicao de senha reenviado.",
+        message: "E-mail de convite reenviado.",
         type: "success",
       });
       await loadUsers();
@@ -377,6 +385,46 @@ export function UsersAdmin() {
       });
     } finally {
       setResendingInviteId(null);
+    }
+  }
+
+  async function deleteInvite(user: UserListItemDTO) {
+    if (!isInvite(user)) return;
+    const confirmed = window.confirm(`Cancelar o convite enviado para ${user.email}?`);
+    if (!confirmed) return;
+
+    setAlert(null);
+    try {
+      await apiFetch(`/api/v1/user-invites/${user.id}`, { method: "DELETE" });
+      setAlert({ message: "Convite excluido.", type: "success" });
+      await loadUsers();
+    } catch (error) {
+      setAlert({
+        message: error instanceof Error ? error.message : "Erro ao excluir convite.",
+        type: "error",
+      });
+    }
+  }
+
+  async function deleteUser(user: UserListItemDTO) {
+    if (isInvite(user)) {
+      await deleteInvite(user);
+      return;
+    }
+
+    const confirmed = window.confirm(`Excluir definitivamente o usuario ${getUserDisplayName(user)}? Esta acao nao pode ser desfeita.`);
+    if (!confirmed) return;
+
+    setAlert(null);
+    try {
+      await apiFetch(`/api/v1/users/${user.id}`, { method: "DELETE" });
+      setAlert({ message: "Usuario excluido definitivamente.", type: "success" });
+      await loadUsers();
+    } catch (error) {
+      setAlert({
+        message: error instanceof Error ? error.message : "Erro ao excluir usuario.",
+        type: "error",
+      });
     }
   }
 
@@ -569,7 +617,7 @@ export function UsersAdmin() {
                       <div className="flex justify-end gap-2">
                         {isAdmin ? (
                           <>
-                            {getUserStatus(user) === "pendente" ? (
+                            {isInvite(user) ? (
                               <button
                                 className="flex min-h-9 items-center justify-center rounded-md px-2 py-1 text-slate-400 transition hover:bg-slate-800 hover:text-cyan-200 disabled:opacity-50"
                                 type="button"
@@ -580,19 +628,35 @@ export function UsersAdmin() {
                                 <MailPlus size={15} aria-hidden="true" />
                               </button>
                             ) : null}
-                            <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={() => openEditModal(user)}>
-                              <Edit3 size={15} aria-hidden="true" />
-                              Editar
-                            </button>
-                            <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={() => void openPlatformsModal(user)}>
-                              <AppWindow size={15} aria-hidden="true" />
-                              Plataformas
-                            </button>
+                            {!isInvite(user) ? (
+                              <>
+                                <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={() => openEditModal(user)}>
+                                  <Edit3 size={15} aria-hidden="true" />
+                                  Editar
+                                </button>
+                                <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={() => void openPlatformsModal(user)}>
+                                  <AppWindow size={15} aria-hidden="true" />
+                                  Plataformas
+                                </button>
+                              </>
+                            ) : null}
+                            {isInvite(user) || me?.id !== user.id ? (
+                              <button
+                                className="btn-secondary min-h-9 px-3 py-1.5 text-rose-200 hover:border-rose-400/50 hover:text-rose-100"
+                                type="button"
+                                onClick={() => void deleteUser(user)}
+                                title={isInvite(user) ? "Excluir convite" : "Excluir usuario"}
+                              >
+                                <Trash2 size={15} aria-hidden="true" />
+                              </button>
+                            ) : null}
                           </>
                         ) : null}
-                        <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={() => void toggleUserStatus(user)} title={user.ativo ? "Inativar" : "Ativar"}>
-                          <Power size={15} aria-hidden="true" />
-                        </button>
+                        {!isInvite(user) && me?.id !== user.id ? (
+                          <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={() => void toggleUserStatus(user)} title={user.ativo ? "Inativar" : "Ativar"}>
+                            <Power size={15} aria-hidden="true" />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

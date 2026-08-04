@@ -23,6 +23,21 @@ export type UserRow = {
   updated_at: string;
 };
 
+export type UserInviteRow = {
+  id: string;
+  email: string;
+  token_hash: string;
+  is_admin: boolean;
+  status: "pending" | "consumed" | "canceled";
+  invited_by: string | null;
+  avatar_url: string | null;
+  expires_at: string;
+  consumed_at: string | null;
+  created_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ApplicationRow = {
   id: string;
   nome: string;
@@ -141,6 +156,31 @@ export type UserResponseDTO = {
   is_admin?: boolean;
   created_at?: string;
   updated_at?: string;
+};
+
+export type UserListItemDTO = UserResponseDTO & {
+  record_type: "user" | "invite";
+  invite_status?: "pending" | "expired";
+  expires_at?: string;
+};
+
+export type UserInviteDTO = {
+  id: string;
+  email: string;
+  is_admin: boolean;
+  status: "pending" | "expired";
+  avatar_url?: string | null;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PublicInviteDTO = {
+  id: string;
+  email: string;
+  is_admin: boolean;
+  avatar_url?: string | null;
+  expires_at: string;
 };
 
 export type AuthenticatedContext = {

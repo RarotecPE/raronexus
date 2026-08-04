@@ -4,6 +4,10 @@ import type {
   ApplicationRoleDTO,
   ApplicationRoleRow,
   ApplicationRow,
+  PublicInviteDTO,
+  UserInviteDTO,
+  UserInviteRow,
+  UserListItemDTO,
   UserResponseDTO,
   UserRow,
 } from "./types";
@@ -35,6 +39,57 @@ export function toPublicUserDTO(user: UserRow): UserResponseDTO {
     nome: user.nome,
     email: user.email,
     ativo: user.ativo,
+  };
+}
+
+export function toUserListItemDTO(
+  user: UserRow,
+  cadastroStatus?: UserResponseDTO["cadastro_status"],
+): UserListItemDTO {
+  return {
+    ...toUserDTO(user, cadastroStatus),
+    record_type: "user",
+  };
+}
+
+export function toUserInviteDTO(invite: UserInviteRow): UserInviteDTO {
+  return {
+    id: invite.id,
+    email: invite.email,
+    is_admin: invite.is_admin,
+    status: new Date(invite.expires_at).getTime() <= Date.now() ? "expired" : "pending",
+    avatar_url: invite.avatar_url,
+    expires_at: invite.expires_at,
+    created_at: invite.created_at,
+    updated_at: invite.updated_at,
+  };
+}
+
+export function toUserInviteListItemDTO(invite: UserInviteRow): UserListItemDTO {
+  const dto = toUserInviteDTO(invite);
+  return {
+    id: dto.id,
+    nome: null,
+    email: dto.email,
+    avatar_url: dto.avatar_url,
+    ativo: true,
+    cadastro_status: "pendente",
+    is_admin: dto.is_admin,
+    created_at: dto.created_at,
+    updated_at: dto.updated_at,
+    record_type: "invite",
+    invite_status: dto.status,
+    expires_at: dto.expires_at,
+  };
+}
+
+export function toPublicInviteDTO(invite: UserInviteRow): PublicInviteDTO {
+  return {
+    id: invite.id,
+    email: invite.email,
+    is_admin: invite.is_admin,
+    avatar_url: invite.avatar_url,
+    expires_at: invite.expires_at,
   };
 }
 

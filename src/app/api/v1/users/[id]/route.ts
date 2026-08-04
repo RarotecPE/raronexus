@@ -33,6 +33,6 @@ export async function DELETE(request: Request, { params }: Params) {
     rateLimit(request, 40, 60_000);
     const { id } = await params;
     const context = await new AuthService().authenticate(request);
-    return ok(await new UserService().deactivate(context, id));
+    return ok(await new UserService().remove(context, id));
   });
 }

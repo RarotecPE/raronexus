@@ -42,3 +42,15 @@ export const completeRegistrationSchema = z.object({
   cpf: cpfSchema,
   avatar_url: z.url().optional().nullable().or(z.literal("")),
 });
+
+export const completeInviteRegistrationSchema = z.object({
+  token: z.string().min(32, "Token invalido."),
+  nome: z.string().min(2, "Informe seu nome.").max(150),
+  cpf: cpfSchema,
+  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres."),
+  avatar_url: z.url().optional().nullable().or(z.literal("")),
+});
+
+export const inviteTokenSchema = z.object({
+  token: z.string().min(32, "Token invalido."),
+});
