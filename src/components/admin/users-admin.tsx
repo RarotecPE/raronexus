@@ -788,7 +788,7 @@ export function UsersAdmin() {
           <div className="space-y-4">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
               <FieldGroup label="Filtro">
-                <input className="field" placeholder="RaroStock" value={platformSearch} onChange={(event) => setPlatformSearch(event.target.value)} />
+                <input className="field" placeholder="Nome da plataforma" value={platformSearch} onChange={(event) => setPlatformSearch(event.target.value)} />
               </FieldGroup>
               <FieldGroup label="Perfil" description="Aplicado as selecionadas.">
                 <select className="field min-w-56" value={bulkProfileKey} onChange={(event) => setBulkProfileKey(event.target.value)}>

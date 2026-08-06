@@ -6,12 +6,13 @@ import { useState } from "react";
 type UserAvatarProps = {
   src?: string | null;
   name: string;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
 };
 
 const sizeClasses = {
   sm: "h-9 w-9",
   md: "h-10 w-10",
+  lg: "h-20 w-20",
 };
 
 export function UserAvatar({ src, name, size = "sm" }: UserAvatarProps) {
@@ -33,7 +34,7 @@ export function UserAvatar({ src, name, size = "sm" }: UserAvatarProps) {
           onError={() => setFailed(true)}
         />
       ) : (
-        <UserRound size={size === "md" ? 20 : 18} aria-hidden="true" />
+        <UserRound size={size === "lg" ? 34 : size === "md" ? 20 : 18} aria-hidden="true" />
       )}
       <span className="sr-only">{name}</span>
     </div>

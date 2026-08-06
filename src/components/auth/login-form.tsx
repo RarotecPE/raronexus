@@ -21,7 +21,7 @@ export function LoginForm() {
       if (!active || !response.ok) return;
 
       const next = new URLSearchParams(window.location.search).get("next");
-      router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/applications");
+      router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/home");
     }
 
     void redirectAuthenticatedUser();
@@ -65,7 +65,7 @@ export function LoginForm() {
     });
 
     const next = new URLSearchParams(window.location.search).get("next");
-    router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/applications");
+    router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/home");
     router.refresh();
   }
 
