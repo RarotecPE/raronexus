@@ -48,6 +48,17 @@ export default function SsoAuthorizePage() {
 
       if (!payload.success) {
         if (response.status === 401) {
+          if (params.get("prompt") === "none") {
+            const redirectUri = params.get("redirect_uri");
+            if (redirectUri) {
+              const redirectUrl = new URL(redirectUri);
+              redirectUrl.searchParams.set("error", "login_required");
+              redirectUrl.searchParams.set("state", params.get("state") ?? "");
+              window.location.replace(redirectUrl.toString());
+              return;
+            }
+          }
+
           router.replace(`/login?next=${encodeURIComponent(currentUrl)}`);
           return;
         }
