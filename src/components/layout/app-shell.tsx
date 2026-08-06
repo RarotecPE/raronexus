@@ -62,7 +62,7 @@ export function AppShell({
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#0f3b68_0,#020617_36%,#020617_100%)] text-slate-100">
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-cyan-400/15 pb-5">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/home" className="flex items-center gap-3">
             <BrandMark />
             <span className="hidden text-sm font-medium text-slate-300 sm:block">
               {title}

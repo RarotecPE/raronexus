@@ -686,14 +686,14 @@ export function ApplicationsAdmin() {
           <form onSubmit={saveApplication} className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <FieldGroup label="Nome">
-                <input className="field" placeholder="RaroStock" value={applicationDraft.nome} onChange={(event) => updateDraftName(event.target.value)} required />
+                <input className="field" placeholder="Nome da plataforma" value={applicationDraft.nome} onChange={(event) => updateDraftName(event.target.value)} required />
               </FieldGroup>
               <FieldGroup label="Identificador" description="Usado pela plataforma no login SSO.">
-                <input className="field" placeholder="rarostock" value={applicationDraft.client_id} onChange={(event) => setApplicationDraft({ ...applicationDraft, client_id: slugify(event.target.value) })} required />
+                <input className="field" placeholder="identificador-da-plataforma" value={applicationDraft.client_id} onChange={(event) => setApplicationDraft({ ...applicationDraft, client_id: slugify(event.target.value) })} required />
               </FieldGroup>
             </div>
             <FieldGroup label="Descricao">
-              <textarea className="field min-h-24" placeholder="Controle interno de estoque" value={applicationDraft.descricao} onChange={(event) => setApplicationDraft({ ...applicationDraft, descricao: event.target.value })} />
+              <textarea className="field min-h-24" placeholder="Descrição breve da plataforma" value={applicationDraft.descricao} onChange={(event) => setApplicationDraft({ ...applicationDraft, descricao: event.target.value })} />
             </FieldGroup>
             <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
               <FieldGroup label="Logo" description="Imagem exibida nos cards e acessos.">
@@ -720,13 +720,13 @@ export function ApplicationsAdmin() {
               </div>
             </div>
             <FieldGroup label="URL inicial" description="Endereco do botao Abrir plataforma.">
-              <input className="field" placeholder="https://rarostock.rarotec.com" type="url" value={applicationDraft.homepage_url} onChange={(event) => setApplicationDraft({ ...applicationDraft, homepage_url: event.target.value })} />
+              <input className="field" placeholder="https://plataforma.rarotec.com" type="url" value={applicationDraft.homepage_url} onChange={(event) => setApplicationDraft({ ...applicationDraft, homepage_url: event.target.value })} />
             </FieldGroup>
             <FieldGroup label="Redirecionamentos" description="Callbacks permitidos apos o login. Um por linha.">
-              <textarea className="field min-h-24" placeholder="https://rarostock.rarotec.com/api/auth/raronexus/callback" value={applicationDraft.redirect_uris} onChange={(event) => setApplicationDraft({ ...applicationDraft, redirect_uris: event.target.value })} required />
+              <textarea className="field min-h-24" placeholder="https://plataforma.rarotec.com/api/auth/raronexus/callback" value={applicationDraft.redirect_uris} onChange={(event) => setApplicationDraft({ ...applicationDraft, redirect_uris: event.target.value })} required />
             </FieldGroup>
             <FieldGroup label="Origens" description="Dominios permitidos. Um por linha.">
-              <textarea className="field min-h-24" placeholder="https://rarostock.rarotec.com" value={applicationDraft.allowed_origins} onChange={(event) => setApplicationDraft({ ...applicationDraft, allowed_origins: event.target.value })} />
+              <textarea className="field min-h-24" placeholder="https://plataforma.rarotec.com" value={applicationDraft.allowed_origins} onChange={(event) => setApplicationDraft({ ...applicationDraft, allowed_origins: event.target.value })} />
             </FieldGroup>
             <label className="flex items-center gap-2 text-sm text-slate-200">
               <input type="checkbox" checked={applicationDraft.ativo} onChange={(event) => setApplicationDraft({ ...applicationDraft, ativo: event.target.checked })} />
@@ -823,7 +823,7 @@ export function ApplicationsAdmin() {
           <div className="space-y-4">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
               <FieldGroup label="Filtro">
-                <input className="field" placeholder="Maria Souza" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} />
+                <input className="field" placeholder="Nome ou e-mail do usuário" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} />
               </FieldGroup>
               <FieldGroup label="Perfil" description="Aplicado aos selecionados.">
                 <select className="field min-w-56" value={bulkProfileId} onChange={(event) => setBulkProfileId(event.target.value)}>

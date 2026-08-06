@@ -43,7 +43,7 @@ export function HomeSessionRedirect() {
       });
 
       if (active && response.ok) {
-        router.replace("/applications");
+        router.replace("/home");
         return;
       }
 
