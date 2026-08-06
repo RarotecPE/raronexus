@@ -9,6 +9,7 @@ import { apiFetch, isAuthFetchError } from "@/lib/api/client-fetch";
 import type { UserResponseDTO } from "@/lib/api/types";
 import { InstallPromptCard } from "@/components/pwa/install-prompt-card";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { ThemeToggleButton } from "@/components/theme/theme-toggle-button";
 
 export function AppShell({
   title,
@@ -69,6 +70,7 @@ export function AppShell({
             </span>
           </Link>
           <nav className="flex flex-wrap gap-2">
+            <ThemeToggleButton />
             <Link className="btn-secondary" href="/profile">
               <UserRound size={16} aria-hidden="true" />
               Perfil

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/layout/brand-mark";
+import { ThemeToggleButton } from "@/components/theme/theme-toggle-button";
 
 export function AuthShell({
   title,
@@ -17,6 +18,7 @@ export function AuthShell({
           <Link href="/">
             <BrandMark />
           </Link>
+          <ThemeToggleButton />
         </header>
         <section className="grid flex-1 items-center gap-8 py-10 lg:grid-cols-[1fr_440px]">
           <div className="max-w-2xl">

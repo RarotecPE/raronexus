@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Activity, AppWindow, KeyRound, UsersRound } from "lucide-react";
 import { HomeSessionRedirect } from "@/components/auth/home-session-redirect";
 import { BrandMark } from "@/components/layout/brand-mark";
+import { ThemeToggleButton } from "@/components/theme/theme-toggle-button";
 
 const modules = [
   { label: "Autenticacao", value: "Supabase Auth", icon: KeyRound },
@@ -18,6 +19,7 @@ export default function Home() {
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-cyan-400/15 pb-5">
           <BrandMark />
           <nav className="flex items-center gap-2">
+            <ThemeToggleButton />
             <Link className="btn-primary" href="/login">
               Entrar
             </Link>
