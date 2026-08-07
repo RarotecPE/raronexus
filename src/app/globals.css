@@ -277,6 +277,19 @@ body.theme-light table tbody tr:hover {
   background-color: #f8fafc !important;
 }
 
+body.theme-light [class~="hover:bg-slate-900/70"]:hover,
+body.theme-light [class~="hover:bg-slate-800"]:hover,
+body.theme-light [class~="hover:bg-slate-800/50"]:hover,
+body.theme-light [class~="hover:bg-slate-800/40"]:hover,
+body.theme-light [class~="hover:bg-slate-800/30"]:hover {
+  background-color: #eef8fd !important;
+}
+
+body.theme-light [class~="hover:border-cyan-400/45"]:hover,
+body.theme-light [class~="hover:border-cyan-400/50"]:hover {
+  border-color: rgba(8, 145, 178, 0.42) !important;
+}
+
 body.theme-light code {
   color: #0f172a;
 }

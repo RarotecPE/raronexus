@@ -1,27 +1,33 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import {
   applyColorTheme,
   getStoredColorTheme,
   storeColorTheme,
-  type ColorTheme,
 } from "@/components/theme/theme-bootstrap";
 
-export function ThemeToggleButton({ className = "" }: { className?: string }) {
-  const [theme, setTheme] = useState<ColorTheme>(() => getStoredColorTheme());
+const THEME_CHANGE_EVENT = "raronexus-theme-change";
 
-  useEffect(() => {
-    applyColorTheme(theme);
-  }, [theme]);
+function subscribeToThemeChanges(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(THEME_CHANGE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(THEME_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+export function ThemeToggleButton({ className = "" }: { className?: string }) {
+  const theme = useSyncExternalStore(subscribeToThemeChanges, getStoredColorTheme, () => "dark");
 
   function toggleTheme() {
-    setTheme((currentTheme) => {
-      const nextTheme = currentTheme === "light" ? "dark" : "light";
-      storeColorTheme(nextTheme);
-      return nextTheme;
-    });
+    const nextTheme = theme === "light" ? "dark" : "light";
+    storeColorTheme(nextTheme);
+    applyColorTheme(nextTheme);
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }
 
   const label = theme === "light" ? "Ativar modo escuro" : "Ativar modo claro";
