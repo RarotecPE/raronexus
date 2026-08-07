@@ -12,9 +12,9 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
+  UsersRound,
   X,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { ApplicationLogo } from "@/components/applications/application-logo";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
@@ -139,7 +139,6 @@ function FieldGroup({
 }
 
 export function UsersAdmin() {
-  const router = useRouter();
   const [me, setMe] = useState<UserResponseDTO | null>(null);
   const [users, setUsers] = useState<UserListItemDTO[]>([]);
   const [search, setSearch] = useState("");
@@ -176,7 +175,7 @@ export function UsersAdmin() {
       setMe(profile);
 
       if (!profile.is_admin) {
-        router.replace("/applications");
+        setUsers([]);
         return;
       }
 
@@ -184,13 +183,13 @@ export function UsersAdmin() {
       setUsers(loadedUsers);
     } catch (error) {
       setAlert({
-        message: error instanceof Error ? error.message : "Erro ao carregar usuarios.",
+        message: error instanceof Error ? error.message : "Erro ao carregar usuários.",
         type: "error",
       });
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -290,7 +289,7 @@ export function UsersAdmin() {
       ])));
     } catch (error) {
       setAlert({
-        message: error instanceof Error ? error.message : "Erro ao carregar plataformas do usuario.",
+        message: error instanceof Error ? error.message : "Erro ao carregar plataformas do usuário.",
         type: "error",
       });
     } finally {
@@ -330,7 +329,7 @@ export function UsersAdmin() {
         });
 
         setAlert({
-          message: "Convite enviado. O usuario completara o cadastro pelo e-mail.",
+          message: "Convite enviado. O usuário completará o cadastro pelo e-mail.",
           type: "success",
         });
       }
@@ -338,7 +337,7 @@ export function UsersAdmin() {
       await loadUsers();
     } catch (error) {
       setAlert({
-        message: error instanceof Error ? error.message : "Erro ao salvar usuario.",
+        message: error instanceof Error ? error.message : "Erro ao salvar usuário.",
         type: "error",
       });
     } finally {
@@ -361,7 +360,7 @@ export function UsersAdmin() {
       await loadUsers();
     } catch (error) {
       setAlert({
-        message: error instanceof Error ? error.message : "Erro ao alterar status do usuario.",
+        message: error instanceof Error ? error.message : "Erro ao alterar status do usuário.",
         type: "error",
       });
     }
@@ -412,7 +411,7 @@ export function UsersAdmin() {
       return;
     }
 
-    const confirmed = window.confirm(`Excluir definitivamente o usuario ${getUserDisplayName(user)}? Esta acao nao pode ser desfeita.`);
+    const confirmed = window.confirm(`Excluir definitivamente o usuário ${getUserDisplayName(user)}? Esta ação não pode ser desfeita.`);
     if (!confirmed) return;
 
     setAlert(null);
@@ -422,7 +421,7 @@ export function UsersAdmin() {
       await loadUsers();
     } catch (error) {
       setAlert({
-        message: error instanceof Error ? error.message : "Erro ao excluir usuario.",
+        message: error instanceof Error ? error.message : "Erro ao excluir usuário.",
         type: "error",
       });
     }
@@ -486,11 +485,11 @@ export function UsersAdmin() {
         }),
       });
       setPlatforms(updated);
-      setAlert({ message: "Acessos do usuario atualizados.", type: "success" });
+      setAlert({ message: "Acessos do usuário atualizados.", type: "success" });
       closeModal();
     } catch (error) {
       setAlert({
-        message: error instanceof Error ? error.message : "Erro ao salvar acessos do usuario.",
+        message: error instanceof Error ? error.message : "Erro ao salvar acessos do usuário.",
         type: "error",
       });
     } finally {
@@ -535,7 +534,7 @@ export function UsersAdmin() {
   }, [platforms]);
 
   return (
-    <AppShell title="Administracao de usuarios">
+    <AppShell title="Administração de usuários">
       {alert ? (
         <SystemAlert
           message={alert.message}
@@ -547,32 +546,41 @@ export function UsersAdmin() {
       <section className="panel overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/70 p-5">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Usuarios</h1>
+            <h1 className="text-2xl font-semibold text-white">Usuários</h1>
             <p className="text-sm text-slate-400">
-              {activeCount} ativos de {users.length} cadastrados
+              {isAdmin ? `${activeCount} ativos de ${users.length} cadastrados` : "Acesso restrito a administradores"}
             </p>
           </div>
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <div className="flex min-w-0 flex-1 sm:flex-none">
-              <input
-                className="field min-w-0 sm:w-72"
-                placeholder="Pesquisar por nome ou e-mail"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </div>
-            <button className="btn-secondary px-3" type="button" onClick={() => void loadUsers()} title="Recarregar">
-              <RefreshCw size={17} aria-hidden="true" />
-            </button>
-            {isAdmin ? (
+          {isAdmin ? (
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+              <div className="flex min-w-0 flex-1 sm:flex-none">
+                <input
+                  className="field min-w-0 sm:w-72"
+                  placeholder="Pesquisar por nome ou e-mail"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
+              <button className="btn-secondary px-3" type="button" onClick={() => void loadUsers()} title="Recarregar">
+                <RefreshCw size={17} aria-hidden="true" />
+              </button>
               <button className="btn-primary" type="button" onClick={openCreateModal}>
                 <Plus size={17} aria-hidden="true" />
-                Novo usuario
+                Novo usuário
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
 
+        {!isAdmin && !loading ? (
+          <div className="px-5 py-10 text-center">
+            <UsersRound className="mx-auto mb-3 text-slate-500" size={30} aria-hidden="true" />
+            <h2 className="text-lg font-semibold text-white">Sem acesso à lista de usuários</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-slate-400">
+              Sua conta pode acessar o Nexus, perfil e plataformas liberadas, mas a visualização de usuários é restrita a administradores.
+            </p>
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[880px] text-left text-sm">
             <thead className="bg-slate-950/70 text-xs uppercase tracking-[0.14em] text-slate-400">
@@ -581,20 +589,20 @@ export function UsersAdmin() {
                 <th className="px-5 py-3">E-mail</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3">Admin</th>
-                <th className="px-5 py-3 text-right">Acoes</th>
+                <th className="px-5 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
               {loading ? (
                 <tr>
                   <td className="px-5 py-6 text-slate-300" colSpan={5}>
-                    Carregando usuarios...
+                    Carregando usuários...
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
                   <td className="px-5 py-6 text-slate-300" colSpan={5}>
-                    Nenhum usuario encontrado.
+                    Nenhum usuário encontrado.
                   </td>
                 </tr>
               ) : (
@@ -645,7 +653,7 @@ export function UsersAdmin() {
                                 className="btn-secondary min-h-9 px-3 py-1.5 text-rose-200 hover:border-rose-400/50 hover:text-rose-100"
                                 type="button"
                                 onClick={() => void deleteUser(user)}
-                                title={isInvite(user) ? "Excluir convite" : "Excluir usuario"}
+                                title={isInvite(user) ? "Excluir convite" : "Excluir usuário"}
                               >
                                 <Trash2 size={15} aria-hidden="true" />
                               </button>
@@ -665,12 +673,13 @@ export function UsersAdmin() {
             </tbody>
           </table>
         </div>
+        )}
       </section>
 
       {modalMode === "edit" ? (
         <Modal
-          title={editing ? "Editar usuario" : "Criar usuario"}
-          description={editing ? "Dados cadastrais e permissoes administrativas do Nexus." : "O usuario completara os dados pelo e-mail."}
+          title={editing ? "Editar usuário" : "Criar usuário"}
+          description={editing ? "Dados cadastrais e permissões administrativas do Nexus." : "O usuário completará os dados pelo e-mail."}
           icon={editing ? <Save size={19} aria-hidden="true" /> : <Plus size={19} aria-hidden="true" />}
           onClose={closeModal}
         >
@@ -780,7 +789,7 @@ export function UsersAdmin() {
       {modalMode === "platforms" && editing ? (
         <Modal
           title="Plataformas"
-          description={`Atribua perfis de usuario para ${getUserDisplayName(editing)}.`}
+          description={`Atribua perfis de usuário para ${getUserDisplayName(editing)}.`}
           icon={<AppWindow size={19} aria-hidden="true" />}
           onClose={closeModal}
           maxWidth="max-w-5xl"

@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { AppWindow, CheckCircle2, UserRound, UsersRound } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { apiFetch } from "@/lib/api/client-fetch";
 import type { UserResponseDTO } from "@/lib/api/types";
 
-const baseActions = [
+const actions = [
   {
     title: "Perfil",
     description: "Atualize seus dados, avatar e senha.",
@@ -21,14 +21,13 @@ const baseActions = [
     href: "/applications",
     icon: AppWindow,
   },
+  {
+    title: "Usuários",
+    description: "Acesse a área de usuários do Nexus.",
+    href: "/admin/users",
+    icon: UsersRound,
+  },
 ];
-
-const adminAction = {
-  title: "Usuários",
-  description: "Gerencie usuários, convites e acessos.",
-  href: "/admin/users",
-  icon: UsersRound,
-};
 
 export function UserHome() {
   const [user, setUser] = useState<UserResponseDTO | null>(null);
@@ -55,11 +54,6 @@ export function UserHome() {
       active = false;
     };
   }, []);
-
-  const actions = useMemo(
-    () => (user?.is_admin ? [...baseActions, adminAction] : baseActions),
-    [user?.is_admin],
-  );
 
   const displayName = user?.nome || user?.email || "usuário";
 
