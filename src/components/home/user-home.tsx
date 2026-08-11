@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { AppWindow, CheckCircle2, UserRound, UsersRound } from "lucide-react";
@@ -10,10 +10,10 @@ import type { UserResponseDTO } from "@/lib/api/types";
 
 const actions = [
   {
-    title: "Perfil",
-    description: "Atualize seus dados, avatar e senha.",
-    href: "/profile",
-    icon: UserRound,
+    title: "Usuários",
+    description: "Acesse a área de usuários do Nexus.",
+    href: "/admin/users",
+    icon: UsersRound,
   },
   {
     title: "Plataformas",
@@ -22,10 +22,10 @@ const actions = [
     icon: AppWindow,
   },
   {
-    title: "Usuários",
-    description: "Acesse a área de usuários do Nexus.",
-    href: "/admin/users",
-    icon: UsersRound,
+    title: "Perfil",
+    description: "Atualize seus dados, avatar e senha.",
+    href: "/profile",
+    icon: UserRound,
   },
 ];
 
