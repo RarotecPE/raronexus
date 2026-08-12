@@ -87,7 +87,11 @@ export function AppShell({
 
     try {
       const loadedApplications = await apiFetch<ApplicationResponseDTO[]>("/api/v1/applications");
-      setApplications(loadedApplications.filter((application) => application.homepage_url));
+      setApplications(
+        loadedApplications.filter(
+          (application) => application.homepage_url && application.client_id !== "raronexus",
+        ),
+      );
     } catch {
       setApplications([]);
       setAppsError("Não foi possível carregar os aplicativos.");
@@ -196,6 +200,8 @@ export function AppShell({
                           key={application.id}
                           className="flex items-center gap-3 rounded-md px-3 py-2 text-left transition hover:bg-slate-900/80"
                           href={application.homepage_url ?? "#"}
+                          target="_blank"
+                          rel="noreferrer"
                         >
                           <ApplicationLogo name={application.nome} logoUrl={application.logo_url} size="sm" />
                           <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100">
