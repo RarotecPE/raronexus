@@ -46,6 +46,122 @@ export const openApiSpec = {
     },
   },
   paths: {
+    "/email/send": {
+      post: {
+        summary: "Enviar e-mail padronizado por aplicacao",
+        tags: ["Email"],
+        servers: [{ url: "/api" }],
+        parameters: [
+          { name: "X-RaroNexus-Client-Id", in: "header", required: true, schema: { type: "string" } },
+          { name: "X-RaroNexus-Client-Secret", in: "header", required: true, schema: { type: "string" } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["to", "subject", "title", "message"],
+                properties: {
+                  to: {
+                    oneOf: [
+                      { type: "string", format: "email" },
+                      { type: "array", items: { type: "string", format: "email" } },
+                    ],
+                  },
+                  subject: { type: "string" },
+                  title: { type: "string" },
+                  message: { type: "string", description: "Texto simples. HTML nao e aceito." },
+                  action_label: { type: "string" },
+                  action_url: { type: "string", format: "uri" },
+                  metadata: { type: "object" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "E-mail enviado" },
+          "401": { description: "Credenciais invalidas" },
+          "403": { description: "Endpoint ou dominio nao liberado" },
+        },
+      },
+    },
+    "/email/test": {
+      post: {
+        summary: "Enviar e-mail de teste por aplicacao",
+        tags: ["Email"],
+        servers: [{ url: "/api" }],
+        parameters: [
+          { name: "X-RaroNexus-Client-Id", in: "header", required: true, schema: { type: "string" } },
+          { name: "X-RaroNexus-Client-Secret", in: "header", required: true, schema: { type: "string" } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["to"],
+                properties: {
+                  to: { type: "string", format: "email" },
+                  metadata: { type: "object" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Teste enviado" },
+          "401": { description: "Credenciais invalidas" },
+          "403": { description: "Endpoint ou dominio nao liberado" },
+        },
+      },
+    },
+    "/email/{endpoint}": {
+      post: {
+        summary: "Enviar e-mail por endpoint cadastrado",
+        tags: ["Email"],
+        servers: [{ url: "/api" }],
+        parameters: [
+          { name: "endpoint", in: "path", required: true, schema: { type: "string", pattern: "^[a-z0-9_.-]+$" } },
+          { name: "X-RaroNexus-Client-Id", in: "header", required: true, schema: { type: "string" } },
+          { name: "X-RaroNexus-Client-Secret", in: "header", required: true, schema: { type: "string" } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["to"],
+                properties: {
+                  to: {
+                    oneOf: [
+                      { type: "string", format: "email" },
+                      { type: "array", items: { type: "string", format: "email" } },
+                    ],
+                  },
+                  subject: { type: "string", description: "Obrigatorio se o endpoint nao tiver assunto padrao." },
+                  title: { type: "string", description: "Obrigatorio se o endpoint nao tiver titulo padrao." },
+                  message: { type: "string", description: "Texto simples. Obrigatorio se o endpoint nao tiver mensagem padrao." },
+                  action_label: { type: "string" },
+                  action_url: { type: "string", format: "uri" },
+                  metadata: { type: "object" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "E-mail enviado" },
+          "401": { description: "Credenciais invalidas" },
+          "403": { description: "Endpoint ou dominio nao liberado" },
+          "404": { description: "Endpoint inexistente ou inativo" },
+          "422": { description: "Conteudo ausente ou invalido" },
+        },
+      },
+    },
     "/auth/login": {
       post: {
         summary: "Realizar login",
