@@ -206,3 +206,124 @@ export type AuthenticatedContext = {
   profile: UserRow | null;
   globalSessionId?: string;
 };
+
+export type EmailEndpointKey = string;
+
+export type EmailGlobalSettingsRow = {
+  id: boolean;
+  display_name: string;
+  logo_url: string | null;
+  primary_color: string;
+  footer_text: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApplicationEmailSettingsRow = {
+  id: string;
+  application_id: string;
+  display_name: string | null;
+  logo_url: string | null;
+  primary_color: string | null;
+  footer_text: string | null;
+  reply_to_email: string | null;
+  allowed_recipient_domains: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApplicationEmailEndpointPermissionRow = {
+  id: string;
+  application_id: string;
+  endpoint: EmailEndpointKey;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmailEndpointRow = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  default_subject: string | null;
+  default_title: string | null;
+  default_message: string | null;
+  default_action_label: string | null;
+  html_template: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmailDeliveryLogRow = {
+  id: string;
+  application_id: string | null;
+  endpoint: EmailEndpointKey;
+  recipient_count: number;
+  recipient_domains: string[];
+  subject: string | null;
+  status: "success" | "error";
+  error_code: string | null;
+  error_message: string | null;
+  provider_message_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type EmailGlobalSettingsDTO = {
+  display_name: string;
+  logo_url?: string | null;
+  primary_color: string;
+  footer_text: string;
+};
+
+export type ApplicationEmailSettingsDTO = {
+  application_id: string;
+  application_nome: string;
+  application_client_id: string;
+  application_logo_url?: string | null;
+  display_name?: string | null;
+  logo_url?: string | null;
+  primary_color?: string | null;
+  footer_text?: string | null;
+  reply_to_email?: string | null;
+  allowed_recipient_domains: string[];
+  endpoints: Record<string, boolean>;
+};
+
+export type EmailEndpointDTO = {
+  id?: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  active: boolean;
+  default_subject?: string | null;
+  default_title?: string | null;
+  default_message?: string | null;
+  default_action_label?: string | null;
+  html_template: string;
+};
+
+export type EmailDeliveryLogDTO = {
+  id: string;
+  application_id?: string | null;
+  application_nome?: string | null;
+  endpoint: EmailEndpointKey;
+  recipient_count: number;
+  recipient_domains: string[];
+  subject?: string | null;
+  status: "success" | "error";
+  error_code?: string | null;
+  error_message?: string | null;
+  provider_message_id?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+};
+
+export type EmailAdminSettingsDTO = {
+  global: EmailGlobalSettingsDTO;
+  endpoints: EmailEndpointDTO[];
+  applications: ApplicationEmailSettingsDTO[];
+  recent_logs: EmailDeliveryLogDTO[];
+};

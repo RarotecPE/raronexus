@@ -8,6 +8,7 @@ import {
   Grid2X2,
   Home,
   LogOut,
+  Mail,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -28,7 +29,7 @@ const navigationItems = [
   { label: "Início", href: "/home", icon: Home },
   { label: "Usuários", href: "/admin/users", icon: UsersRound },
   { label: "Plataformas", href: "/applications", icon: AppWindow },
-  { label: "Perfil", href: "/profile", icon: UserRound },
+  { label: "E-mails", href: "/admin/emails/global", icon: Mail },
 ];
 
 export function AppShell({
@@ -128,13 +129,14 @@ export function AppShell({
     router.push("/login");
   }
 
+  const visibleNavigationItems = navigationItems;
   const displayName = user?.nome || user?.email || "Usuário";
   const roleLabel = isAdmin ? "Administrador" : "Usuário";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#0f3b68_0,#020617_36%,#020617_100%)] text-slate-100">
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-5">
-        <header className="mb-6 grid grid-cols-[auto_1fr] items-center gap-4 border-b border-cyan-400/15 pb-5 lg:grid-cols-[auto_1fr_auto]">
+        <header className="relative mb-6 grid grid-cols-[auto_1fr] items-center gap-4 border-b border-cyan-400/15 pb-5 lg:grid-cols-[minmax(0,1fr)_auto]">
           <Link href="/home" className="flex min-w-0 items-center gap-3">
             <BrandMark />
             <span className="hidden text-base font-semibold text-slate-200 sm:block">
@@ -142,8 +144,8 @@ export function AppShell({
             </span>
           </Link>
 
-          <nav className="hidden flex-wrap justify-center gap-2 lg:flex">
-            {navigationItems.map((item) => {
+          <nav className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 flex-wrap justify-center gap-2 lg:flex">
+            {visibleNavigationItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
@@ -160,7 +162,7 @@ export function AppShell({
             })}
           </nav>
 
-          <div ref={menuRef} className="relative col-start-2 row-start-1 flex justify-end gap-2 lg:col-start-auto lg:row-start-auto">
+          <div ref={menuRef} className="relative col-start-2 row-start-1 flex justify-end gap-2 lg:col-start-2 lg:row-start-auto">
             <ThemeToggleButton className="px-3" />
 
             <div className="relative">
@@ -273,8 +275,11 @@ export function AppShell({
 
       {!checkingSession ? (
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-cyan-400/15 bg-slate-950/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-2xl shadow-slate-950/80 backdrop-blur lg:hidden">
-          <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
-            {navigationItems.map((item) => {
+          <div
+            className="mx-auto grid max-w-md gap-1"
+            style={{ gridTemplateColumns: `repeat(${visibleNavigationItems.length}, minmax(0, 1fr))` }}
+          >
+            {visibleNavigationItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
 

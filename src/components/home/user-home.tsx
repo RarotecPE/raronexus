@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { AppWindow, CheckCircle2, UserRound, UsersRound } from "lucide-react";
+import { AppWindow, CheckCircle2, Mail, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -22,10 +22,10 @@ const actions = [
     icon: AppWindow,
   },
   {
-    title: "Perfil",
-    description: "Atualize seus dados, avatar e senha.",
-    href: "/profile",
-    icon: UserRound,
+    title: "E-mails",
+    description: "Configure a central de envio das plataformas.",
+    href: "/admin/emails/global",
+    icon: Mail,
   },
 ];
 

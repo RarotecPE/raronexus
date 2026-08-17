@@ -7,10 +7,9 @@ export function BrandMark() {
       <Image
         src={BRAND_LOGO_URL}
         alt="Rarotec"
-        width={176}
+        width={44}
         height={44}
-        className="h-11 w-auto object-contain"
-        style={{ width: "auto" }}
+        className="h-11 w-11 object-contain"
         priority
       />
     </div>
