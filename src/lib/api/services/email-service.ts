@@ -254,7 +254,7 @@ export class EmailService {
 
     const existing = await this.emails.findEndpointByKey(currentKey);
     if (!existing) {
-      throw new ApiException("Endpoint de e-mail nao encontrado.", "EMAIL_ENDPOINT_NOT_FOUND", 404);
+      throw new ApiException("Endpoint de e-mail não encontrado.", "EMAIL_ENDPOINT_NOT_FOUND", 404);
     }
 
     const endpoint = await this.emails.updateEndpointByKey(currentKey, this.normalizeEndpointInput(input));
@@ -268,12 +268,12 @@ export class EmailService {
   async updateApplicationSettings(context: AuthenticatedContext, applicationId: string, input: ApplicationSettingsInput) {
     this.requireAdmin(context);
     if (applicationId !== input.application_id) {
-      throw new ApiException("Aplicacao invalida.", "APPLICATION_ID_MISMATCH", 400);
+      throw new ApiException("Aplicação inválida.", "APPLICATION_ID_MISMATCH", 400);
     }
 
     const application = await this.applications.findById(applicationId);
     if (!application) {
-      throw new ApiException("Aplicacao nao encontrada.", "APPLICATION_NOT_FOUND", 404);
+      throw new ApiException("Aplicação não encontrada.", "APPLICATION_NOT_FOUND", 404);
     }
 
     await this.emails.upsertApplicationSettings({
@@ -310,7 +310,7 @@ export class EmailService {
 
     const endpoint = await this.emails.findEndpointByKey(key);
     if (!endpoint) {
-      throw new ApiException("Endpoint de e-mail nao encontrado.", "EMAIL_ENDPOINT_NOT_FOUND", 404);
+      throw new ApiException("Endpoint de e-mail não encontrado.", "EMAIL_ENDPOINT_NOT_FOUND", 404);
     }
 
     await this.emails.deleteEndpoint(key);
@@ -322,12 +322,12 @@ export class EmailService {
     const clientSecret = request.headers.get("X-RaroNexus-Client-Secret")?.trim();
 
     if (!clientId || !clientSecret) {
-      throw new ApiException("Credenciais da aplicacao nao informadas.", "APPLICATION_CREDENTIALS_REQUIRED", 401);
+      throw new ApiException("Credenciais da aplicação não informadas.", "APPLICATION_CREDENTIALS_REQUIRED", 401);
     }
 
     const application = await this.applications.findByClientId(clientId);
     if (!application?.ativo || application.client_secret !== clientSecret) {
-      throw new ApiException("Aplicacao invalida ou credenciais incorretas.", "INVALID_APPLICATION_CREDENTIALS", 401);
+      throw new ApiException("Aplicação inválida ou credenciais incorretas.", "INVALID_APPLICATION_CREDENTIALS", 401);
     }
 
     const [endpointRow, setting, permissions] = await Promise.all([
@@ -337,13 +337,13 @@ export class EmailService {
     ]);
 
     if (!endpointRow?.active) {
-      throw new ApiException("Endpoint de e-mail nao encontrado ou inativo.", "EMAIL_ENDPOINT_NOT_FOUND", 404);
+      throw new ApiException("Endpoint de e-mail não encontrado ou inativo.", "EMAIL_ENDPOINT_NOT_FOUND", 404);
     }
 
     const permission = permissions.find((item) => item.endpoint === endpoint);
 
     if (!permission?.enabled) {
-      throw new ApiException("Endpoint de e-mail nao liberado para esta aplicacao.", "EMAIL_ENDPOINT_NOT_ALLOWED", 403);
+      throw new ApiException("Endpoint de e-mail não liberado para esta aplicação.", "EMAIL_ENDPOINT_NOT_ALLOWED", 403);
     }
 
     return { application, setting, endpoint: endpointRow };
@@ -361,7 +361,7 @@ export class EmailService {
     });
 
     if (invalid.length > 0) {
-      throw new ApiException("Destinatario fora da lista de dominios permitidos.", "EMAIL_DOMAIN_NOT_ALLOWED", 403);
+      throw new ApiException("Destinatário fora da lista de domínios permitidos.", "EMAIL_DOMAIN_NOT_ALLOWED", 403);
     }
   }
 
@@ -449,7 +449,7 @@ export class EmailService {
   async testFromAdmin(context: AuthenticatedContext, input: AdminTestInput) {
     this.requireAdmin(context);
     const application = await this.applications.findById(input.application_id);
-    if (!application) throw new ApiException("Aplicacao nao encontrada.", "APPLICATION_NOT_FOUND", 404);
+    if (!application) throw new ApiException("Aplicação não encontrada.", "APPLICATION_NOT_FOUND", 404);
     const setting = await this.emails.findApplicationSettings(application.id);
     this.ensureAllowedRecipients(setting, [input.to]);
 
@@ -470,7 +470,7 @@ export class EmailService {
         to,
         subject: "Teste de e-mail RaroNexus",
         title: "Teste de envio",
-        message: `Este e-mail confirma que a aplicacao ${application.nome} esta autorizada a usar a central de e-mails do RaroNexus.`,
+        message: `Este e-mail confirma que a aplicação ${application.nome} está autorizada a usar a central de e-mails do RaroNexus.`,
         logoUrl: template.logoUrl,
         logoAlt: template.fromName,
         primaryColor: template.primaryColor,

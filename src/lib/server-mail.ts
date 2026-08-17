@@ -35,7 +35,7 @@ export type TemplatedEmailInput = {
 function requireEnv(name: string) {
   const value = process.env[name];
   if (!value) {
-    throw new ApiException(`Variavel de ambiente ausente: ${name}`, "SMTP_CONFIG_MISSING", 500);
+    throw new ApiException(`Variável de ambiente ausente: ${name}`, "SMTP_CONFIG_MISSING", 500);
   }
   return value;
 }
@@ -225,7 +225,7 @@ function renderStandardEmail(input: StandardEmailInput) {
         </a>
       </p>
       <p style="font-size: 13px; line-height: 1.5; color: #64748b;">
-        Se o botao nao funcionar, copie e cole este link no navegador:<br />
+        Se o botão não funcionar, copie e cole este link no navegador:<br />
         <span style="word-break: break-all;">${escapeHtml(input.actionUrl)}</span>
       </p>
     `
@@ -326,17 +326,17 @@ export async function sendUserInviteEmail(input: {
   await sendStandardEmail({
     to: input.email,
     subject: "Complete seu cadastro no RaroNexus",
-    title: "Voce foi convidado para o RaroNexus",
+    title: "Você foi convidado para o RaroNexus",
     message: [
       "Uma conta foi criada para este e-mail no RaroNexus.",
-      "Para concluir seu cadastro, informe seus dados e defina sua senha no botao abaixo.",
+      "Para concluir seu cadastro, informe seus dados e defina sua senha no botão abaixo.",
     ].join("\n\n"),
     actionLabel: "Completar cadastro",
     actionUrl: inviteUrl,
     logoUrl: logoSrc,
     logoAlt: "RaroNexus",
     primaryColor: "#0f766e",
-    footerText: "Este convite expira em 48 horas. Se voce nao esperava este convite, ignore este e-mail.",
+    footerText: "Este convite expira em 48 horas. Se você não esperava este convite, ignore este e-mail.",
     attachments: logoAttachment ? [logoAttachment] : [],
   });
 }

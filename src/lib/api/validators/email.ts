@@ -6,13 +6,13 @@ const domainSchema = z
   .string()
   .trim()
   .toLowerCase()
-  .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i, "Dominio invalido.");
+  .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i, "Domínio inválido.");
 const plainTextSchema = (max: number) => z
   .string()
   .trim()
   .min(1)
   .max(max)
-  .refine((value) => !/<[a-z][\s\S]*>/i.test(value), "HTML nao e aceito neste campo.");
+  .refine((value) => !/<[a-z][\s\S]*>/i.test(value), "HTML não é aceito neste campo.");
 
 const htmlTemplateSchema = z
   .string()
@@ -20,16 +20,16 @@ const htmlTemplateSchema = z
   .min(8)
   .max(30000)
   .refine((value) => value.includes("{{body}}"), "O corpo HTML precisa conter a tag {{body}}.")
-  .refine((value) => !/<\s*script[\s>]/i.test(value), "Scripts nao sao permitidos no template.")
-  .refine((value) => !/\son[a-z]+\s*=/i.test(value), "Eventos HTML nao sao permitidos no template.")
-  .refine((value) => !/javascript\s*:/i.test(value), "Links javascript nao sao permitidos no template.");
+  .refine((value) => !/<\s*script[\s>]/i.test(value), "Scripts não são permitidos no template.")
+  .refine((value) => !/\son[a-z]+\s*=/i.test(value), "Eventos HTML não são permitidos no template.")
+  .refine((value) => !/javascript\s*:/i.test(value), "Links javascript não são permitidos no template.");
 
 export const emailEndpointSchema = z.string().trim().min(2).max(80).regex(/^[a-z0-9_.-]+$/);
 const optionalPlainTextSchema = (max: number) => z
   .string()
   .trim()
   .max(max)
-  .refine((value) => !/<[a-z][\s\S]*>/i.test(value), "HTML nao e aceito neste campo.")
+  .refine((value) => !/<[a-z][\s\S]*>/i.test(value), "HTML não é aceito neste campo.")
   .optional()
   .nullable();
 
@@ -82,7 +82,7 @@ const emailAttachmentSchema = z.object({
 }).refine((attachment) => {
   const size = Buffer.byteLength(attachment.content_base64, "base64");
   return size > 0 && size <= 5 * 1024 * 1024;
-}, "O anexo deve ser um PDF de ate 5 MB.");
+}, "O anexo deve ser um PDF de até 5 MB.");
 
 export const sendEmailSchema = z.object({
   to: emailListSchema,

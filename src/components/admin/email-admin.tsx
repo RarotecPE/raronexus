@@ -119,7 +119,7 @@ function EmailSidebar({ section, dirty }: { section: EmailAdminSection; dirty: b
 
   function confirmNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
     if (!dirty) return;
-    if (!window.confirm("Existem alteracoes nao salvas nesta tela. Deseja sair mesmo assim?")) {
+    if (!window.confirm("Existem alterações não salvas nesta tela. Deseja sair mesmo assim?")) {
       event.preventDefault();
     }
   }
@@ -164,12 +164,12 @@ function LogList({ logs }: { logs: EmailDeliveryLogDTO[] }) {
               <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${log.status === "success" ? "border-emerald-400/25 bg-emerald-950/25 text-emerald-100" : "border-rose-400/25 bg-rose-950/25 text-rose-100"}`}>
                 {log.status === "success" ? "Enviado" : "Erro"}
               </span>
-              <span className="text-sm font-semibold text-white">{log.application_nome ?? "Aplicacao removida"}</span>
+              <span className="text-sm font-semibold text-white">{log.application_nome ?? "Aplicação removida"}</span>
               <span className="text-xs uppercase tracking-[0.14em] text-cyan-300">/api/email/{log.endpoint}</span>
             </div>
             <p className="mt-2 truncate text-sm text-slate-300">{log.subject ?? "Sem assunto"}</p>
             <p className="mt-1 text-xs text-slate-500">
-              {log.recipient_count} destinatario(s) em {log.recipient_domains.join(", ") || "dominio nao registrado"}
+              {log.recipient_count} destinatário(s) em {log.recipient_domains.join(", ") || "domínio não registrado"}
             </p>
             {log.error_message ? <p className="mt-1 text-xs text-rose-300">{log.error_message}</p> : null}
           </div>
@@ -232,7 +232,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
         setForbidden(true);
         return;
       }
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel carregar a central de e-mails." });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Não foi possível carregar a central de e-mails." });
     } finally {
       setLoading(false);
     }
@@ -251,7 +251,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
           setForbidden(true);
           return;
         }
-        setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel carregar a central de e-mails." });
+        setAlert({ type: "error", message: error instanceof Error ? error.message : "Não foi possível carregar a central de e-mails." });
       } finally {
         if (active) setLoading(false);
       }
@@ -308,9 +308,9 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
       const data = await apiFetch<EmailGlobalSettingsDTO>("/api/v1/email/global", { method: "PUT", body: JSON.stringify(global) });
       setGlobal(data);
       setGlobalOriginal(data);
-      setAlert({ type: "success", message: "Padrao global salvo." });
+      setAlert({ type: "success", message: "Padrão global salvo." });
     } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel salvar o padrao global." });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Não foi possível salvar o padrão global." });
     } finally {
       setSavingGlobal(false);
     }
@@ -345,7 +345,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
       setApplicationsOriginal((current) => current.map((application) => ({ ...application, endpoints: { ...application.endpoints, [data.key]: application.endpoints[data.key] ?? false } })));
       setAlert({ type: "success", message: endpoint.id ? "Endpoint salvo." : "Endpoint criado." });
     } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel salvar o endpoint." });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Não foi possível salvar o endpoint." });
     } finally {
       setSavingEndpointKey("");
     }
@@ -363,7 +363,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
       setApplicationsOriginal((current) => current.map((item) => (item.application_id === data.application_id ? data : item)));
       setAlert({ type: "success", message: "Plataforma salva." });
     } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel salvar a plataforma." });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Não foi possível salvar a plataforma." });
     } finally {
       setSavingApplicationId("");
     }
@@ -372,7 +372,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
   async function test(application: ApplicationEmailSettingsDTO) {
     const to = testDraft[application.application_id]?.trim();
     if (!to) {
-      setAlert({ type: "warning", message: "Informe um destinatario para testar o envio." });
+      setAlert({ type: "warning", message: "Informe um destinatário para testar o envio." });
       return;
     }
 
@@ -382,7 +382,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
       setAlert({ type: "success", message: "E-mail de teste enviado." });
       await refreshLogs();
     } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel enviar o teste." });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Não foi possível enviar o teste." });
     } finally {
       setTestingId("");
     }
@@ -392,7 +392,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
     try {
       setLogs(await apiFetch<EmailDeliveryLogDTO[]>("/api/v1/email/logs"));
     } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel atualizar os registros." });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Não foi possível atualizar os registros." });
     }
   }
 
@@ -407,7 +407,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
     const endpointKey = slugify(deleteCandidate.endpoint.key || deleteCandidate.endpoint.name);
     const expected = `/api/email/${endpointKey}`;
     if (deleteConfirmation.trim() !== expected) {
-      setAlert({ type: "warning", message: "Digite a URL exata do endpoint para confirmar a remocao." });
+      setAlert({ type: "warning", message: "Digite a URL exata do endpoint para confirmar a remoção." });
       return;
     }
 
@@ -426,7 +426,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
       setDeleteConfirmation("");
       setAlert({ type: "success", message: "Endpoint removido." });
     } catch (error) {
-      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel remover o endpoint." });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Não foi possível remover o endpoint." });
     } finally {
       setDeleting(false);
     }
@@ -445,7 +445,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
               </p>
               <h1 className="text-2xl font-semibold text-white">E-mails</h1>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-                Configure o padrao visual, endpoints, plataformas autorizadas e registros recentes.
+                Configure o padrão visual, endpoints, plataformas autorizadas e registros recentes.
               </p>
             </div>
             {!forbidden ? (
@@ -461,7 +461,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
             <Mail className="mx-auto mb-3 text-slate-500" size={30} aria-hidden="true" />
             <h2 className="text-lg font-semibold text-white">Sem acesso a central de e-mails</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-400">
-              Sua conta pode acessar o Nexus, perfil e plataformas liberadas, mas a configuracao de e-mails e restrita a administradores.
+              Sua conta pode acessar o Nexus, perfil e plataformas liberadas, mas a configuração de e-mails é restrita a administradores.
             </p>
           </section>
         ) : loading ? (
@@ -475,11 +475,11 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
                   <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <h2 className="text-lg font-semibold text-white">Padrao global</h2>
-                      <p className="text-sm text-slate-400">Usado quando a plataforma nao tiver sobrescritas proprias.</p>
+                      <p className="text-sm text-slate-400">Usado quando a plataforma não tiver sobrescritas próprias.</p>
                     </div>
                     <button className="btn-primary" type="button" disabled={!dirty || savingGlobal} onClick={() => void saveGlobal()}>
                       <Save size={16} aria-hidden="true" />
-                      {savingGlobal ? "Salvando..." : "Salvar padrao global"}
+                      {savingGlobal ? "Salvando..." : "Salvar padrão global"}
                     </button>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
@@ -492,7 +492,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
                     <Field label="Cor principal">
                       <input className="field h-11" type="color" value={global.primary_color} onChange={(event) => setGlobal({ ...global, primary_color: event.target.value })} />
                     </Field>
-                    <Field label="Rodape">
+                    <Field label="Rodapé">
                       <textarea className="field min-h-24" value={global.footer_text} onChange={(event) => setGlobal({ ...global, footer_text: event.target.value })} />
                     </Field>
                   </div>
@@ -538,7 +538,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
                   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <h2 className="text-lg font-semibold text-white">Registros</h2>
-                      <p className="text-sm text-slate-400">Ultimos 50 envios. O corpo dos e-mails nao e armazenado.</p>
+                      <p className="text-sm text-slate-400">Últimos 50 envios. O corpo dos e-mails não é armazenado.</p>
                     </div>
                     <button className="btn-secondary" type="button" onClick={() => void refreshLogs()}>
                       <RefreshCw size={16} aria-hidden="true" />
@@ -560,7 +560,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
               <div>
                 <h2 className="text-lg font-semibold text-white">Remover endpoint?</h2>
                 <p className="mt-1 text-sm leading-6 text-slate-400">
-                  Essa acao remove a rota da central e todas as permissoes das plataformas para este endpoint.
+                  Essa ação remove a rota da central e todas as permissões das plataformas para este endpoint.
                 </p>
               </div>
               <button className="btn-secondary min-h-9 px-3 py-2" type="button" onClick={() => setDeleteCandidate(null)} title="Fechar">
@@ -864,7 +864,7 @@ function PlatformSection({
               ) : null}
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Dominios permitidos" description="Deixe vazio para aceitar qualquer dominio. Um dominio por linha quando quiser restringir.">
+              <Field label="Domínios permitidos" description="Deixe vazio para aceitar qualquer domínio. Um domínio por linha quando quiser restringir.">
                 <textarea className="field min-h-28" value={arrayToLines(application.allowed_recipient_domains)} onChange={(event) => onApplicationChange(application.application_id, { allowed_recipient_domains: linesToArray(event.target.value) })} />
               </Field>
               <Field label="Responder para" description="Opcional. Usado como Reply-To.">
@@ -879,7 +879,7 @@ function PlatformSection({
               <Field label="Cor principal">
                 <input className="field h-11" type="color" value={application.primary_color || global.primary_color} onChange={(event) => onApplicationChange(application.application_id, { primary_color: event.target.value })} />
               </Field>
-              <Field label="Rodape">
+              <Field label="Rodapé">
                 <textarea className="field min-h-24" value={application.footer_text ?? ""} onChange={(event) => onApplicationChange(application.application_id, { footer_text: event.target.value })} />
               </Field>
             </div>
