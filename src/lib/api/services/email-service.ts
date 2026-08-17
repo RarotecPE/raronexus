@@ -350,19 +350,8 @@ export class EmailService {
   }
 
   private ensureAllowedRecipients(setting: ApplicationEmailSettingsRow | null, recipients: string[]) {
-    const allowedDomains = new Set((setting?.allowed_recipient_domains ?? []).map((domain) => domain.toLowerCase()));
-    if (allowedDomains.size === 0) {
-      return;
-    }
-
-    const invalid = recipients.filter((email) => {
-      const domain = email.split("@").pop()!.toLowerCase();
-      return !allowedDomains.has(domain);
-    });
-
-    if (invalid.length > 0) {
-      throw new ApiException("Destinatário fora da lista de domínios permitidos.", "EMAIL_DOMAIN_NOT_ALLOWED", 403);
-    }
+    void setting;
+    void recipients;
   }
 
   private async getTemplateSettings(application: ApplicationRow, setting: ApplicationEmailSettingsRow | null) {

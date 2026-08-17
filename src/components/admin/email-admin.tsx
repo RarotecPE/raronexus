@@ -22,14 +22,6 @@ const sections: Array<{ id: EmailAdminSection; href: string; label: string; icon
   { id: "logs", href: "/admin/emails/logs", label: "Registros", icon: <ScrollText size={16} aria-hidden="true" /> },
 ];
 
-function linesToArray(value: string) {
-  return value.split(/\r?\n/).map((line) => line.trim().toLowerCase()).filter(Boolean);
-}
-
-function arrayToLines(value: string[]) {
-  return value.join("\n");
-}
-
 function slugify(value: string) {
   return value
     .normalize("NFD")
@@ -87,7 +79,7 @@ function normalizeApplication(application: ApplicationEmailSettingsDTO, endpoint
     primary_color: application.primary_color ?? "",
     footer_text: application.footer_text ?? "",
     reply_to_email: application.reply_to_email ?? "",
-    allowed_recipient_domains: Array.from(new Set(application.allowed_recipient_domains.map((domain) => domain.toLowerCase()))),
+    allowed_recipient_domains: [],
     endpoints: Object.fromEntries(endpoints.map((endpoint) => [endpoint.key, application.endpoints[endpoint.key] ?? false])),
   };
 }
@@ -864,10 +856,7 @@ function PlatformSection({
               ) : null}
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Domínios permitidos" description="Deixe vazio para aceitar qualquer domínio. Um domínio por linha quando quiser restringir.">
-                <textarea className="field min-h-28" value={arrayToLines(application.allowed_recipient_domains)} onChange={(event) => onApplicationChange(application.application_id, { allowed_recipient_domains: linesToArray(event.target.value) })} />
-              </Field>
-              <Field label="Responder para" description="Opcional. Usado como Reply-To.">
+              <Field label="Responder para: (Opcional)">
                 <input className="field" value={application.reply_to_email ?? ""} onChange={(event) => onApplicationChange(application.application_id, { reply_to_email: event.target.value })} />
               </Field>
               <Field label="Nome exibido">
