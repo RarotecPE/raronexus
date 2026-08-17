@@ -1,28 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Mail, Plus, RefreshCw, Save, Send, ShieldCheck, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown, Globe2, ListChecks, Mail, Plus, RefreshCw, Save, ScrollText, Send, Server, ShieldCheck, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ApplicationLogo } from "@/components/applications/application-logo";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
 import { ApiFetchError, apiFetch } from "@/lib/api/client-fetch";
-import type {
-  ApplicationEmailSettingsDTO,
-  EmailAdminSettingsDTO,
-  EmailDeliveryLogDTO,
-  EmailEndpointDTO,
-  EmailGlobalSettingsDTO,
-} from "@/lib/api/types";
+import type { ApplicationEmailSettingsDTO, EmailAdminSettingsDTO, EmailDeliveryLogDTO, EmailEndpointDTO, EmailGlobalSettingsDTO } from "@/lib/api/types";
+
+export type EmailAdminSection = "global" | "endpoints" | "platforms" | "logs";
 
 type AlertState = { message: string; type: SystemAlertType } | null;
-type TestDraft = Record<string, string>;
 type DeleteCandidate = { endpoint: EmailEndpointDTO; index: number } | null;
 
+const sections: Array<{ id: EmailAdminSection; href: string; label: string; icon: React.ReactNode }> = [
+  { id: "global", href: "/admin/emails/global", label: "Global", icon: <Globe2 size={16} aria-hidden="true" /> },
+  { id: "endpoints", href: "/admin/emails/endpoints", label: "Endpoints", icon: <Server size={16} aria-hidden="true" /> },
+  { id: "platforms", href: "/admin/emails/platforms", label: "Plataformas", icon: <ListChecks size={16} aria-hidden="true" /> },
+  { id: "logs", href: "/admin/emails/logs", label: "Registros", icon: <ScrollText size={16} aria-hidden="true" /> },
+];
+
 function linesToArray(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim().toLowerCase())
-    .filter(Boolean);
+  return value.split(/\r?\n/).map((line) => line.trim().toLowerCase()).filter(Boolean);
 }
 
 function arrayToLines(value: string[]) {
@@ -38,11 +39,8 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
+function stable(value: unknown) {
+  return JSON.stringify(value);
 }
 
 function emptyGlobal(): EmailGlobalSettingsDTO {
@@ -67,21 +65,78 @@ function emptyEndpoint(): EmailEndpointDTO {
   };
 }
 
-function Field({
-  label,
-  description,
-  children,
-}: {
-  label: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
+function normalizeEndpoint(endpoint: EmailEndpointDTO): EmailEndpointDTO {
+  return {
+    ...endpoint,
+    key: slugify(endpoint.key || endpoint.name),
+    description: endpoint.description ?? "",
+    default_subject: endpoint.default_subject ?? "",
+    default_title: endpoint.default_title ?? "",
+    default_message: endpoint.default_message ?? "",
+    default_action_label: endpoint.default_action_label ?? "",
+  };
+}
+
+function normalizeApplication(application: ApplicationEmailSettingsDTO, endpoints: EmailEndpointDTO[]): ApplicationEmailSettingsDTO {
+  return {
+    ...application,
+    display_name: application.display_name ?? "",
+    logo_url: application.logo_url ?? "",
+    primary_color: application.primary_color ?? "",
+    footer_text: application.footer_text ?? "",
+    reply_to_email: application.reply_to_email ?? "",
+    allowed_recipient_domains: Array.from(new Set(application.allowed_recipient_domains.map((domain) => domain.toLowerCase()))),
+    endpoints: Object.fromEntries(endpoints.map((endpoint) => [endpoint.key, application.endpoints[endpoint.key] ?? false])),
+  };
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
+function Field({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-semibold text-slate-200">{label}</span>
       {description ? <span className="mb-2 block text-xs leading-5 text-slate-500">{description}</span> : null}
       {children}
     </label>
+  );
+}
+
+function EmailSidebar({ section, dirty }: { section: EmailAdminSection; dirty: boolean }) {
+  const pathname = usePathname();
+
+  function confirmNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (!dirty) return;
+    if (!window.confirm("Existem alteracoes nao salvas nesta tela. Deseja sair mesmo assim?")) {
+      event.preventDefault();
+    }
+  }
+
+  return (
+    <aside className="panel shrink-0 p-2 lg:w-56">
+      <div className="grid grid-cols-2 gap-2 lg:block lg:space-y-1">
+        {sections.map((item) => {
+          const active = section === item.id || pathname === item.href;
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              onClick={confirmNavigation}
+              className={`flex min-h-10 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                active
+                  ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-100"
+                  : "border-transparent text-slate-400 hover:border-slate-700 hover:bg-slate-900/70 hover:text-white"
+              }`}
+            >
+              {item.icon}
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
+    </aside>
   );
 }
 
@@ -96,20 +151,15 @@ function LogList({ logs }: { logs: EmailDeliveryLogDTO[] }) {
         <div key={log.id} className="grid gap-2 bg-slate-950/45 p-4 md:grid-cols-[1fr_auto] md:items-center">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${
-                log.status === "success"
-                  ? "border-emerald-400/25 bg-emerald-950/25 text-emerald-100"
-                  : "border-rose-400/25 bg-rose-950/25 text-rose-100"
-              }`}
-              >
+              <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${log.status === "success" ? "border-emerald-400/25 bg-emerald-950/25 text-emerald-100" : "border-rose-400/25 bg-rose-950/25 text-rose-100"}`}>
                 {log.status === "success" ? "Enviado" : "Erro"}
               </span>
-              <span className="text-sm font-semibold text-white">{log.application_nome ?? "Aplicação removida"}</span>
+              <span className="text-sm font-semibold text-white">{log.application_nome ?? "Aplicacao removida"}</span>
               <span className="text-xs uppercase tracking-[0.14em] text-cyan-300">/api/email/{log.endpoint}</span>
             </div>
             <p className="mt-2 truncate text-sm text-slate-300">{log.subject ?? "Sem assunto"}</p>
             <p className="mt-1 text-xs text-slate-500">
-              {log.recipient_count} destinatário(s) em {log.recipient_domains.join(", ") || "domínio não registrado"}
+              {log.recipient_count} destinatario(s) em {log.recipient_domains.join(", ") || "dominio nao registrado"}
             </p>
             {log.error_message ? <p className="mt-1 text-xs text-rose-300">{log.error_message}</p> : null}
           </div>
@@ -120,35 +170,50 @@ function LogList({ logs }: { logs: EmailDeliveryLogDTO[] }) {
   );
 }
 
-export function EmailAdmin() {
+export function EmailAdmin({ section }: { section: EmailAdminSection }) {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [testingId, setTestingId] = useState("");
-  const [global, setGlobal] = useState<EmailGlobalSettingsDTO>(emptyGlobal);
-  const [endpoints, setEndpoints] = useState<EmailEndpointDTO[]>([]);
-  const [applications, setApplications] = useState<ApplicationEmailSettingsDTO[]>([]);
-  const [logs, setLogs] = useState<EmailDeliveryLogDTO[]>([]);
-  const [testDraft, setTestDraft] = useState<TestDraft>({});
   const [alert, setAlert] = useState<AlertState>(null);
   const [forbidden, setForbidden] = useState(false);
+  const [global, setGlobal] = useState<EmailGlobalSettingsDTO>(emptyGlobal);
+  const [globalOriginal, setGlobalOriginal] = useState<EmailGlobalSettingsDTO>(emptyGlobal);
+  const [endpoints, setEndpoints] = useState<EmailEndpointDTO[]>([]);
+  const [endpointsOriginal, setEndpointsOriginal] = useState<EmailEndpointDTO[]>([]);
+  const [applications, setApplications] = useState<ApplicationEmailSettingsDTO[]>([]);
+  const [applicationsOriginal, setApplicationsOriginal] = useState<ApplicationEmailSettingsDTO[]>([]);
+  const [logs, setLogs] = useState<EmailDeliveryLogDTO[]>([]);
+  const [openEndpointDropdown, setOpenEndpointDropdown] = useState("");
+  const [testDraft, setTestDraft] = useState<Record<string, string>>({});
+  const [testingId, setTestingId] = useState("");
+  const [savingGlobal, setSavingGlobal] = useState(false);
+  const [savingEndpointKey, setSavingEndpointKey] = useState("");
+  const [savingApplicationId, setSavingApplicationId] = useState("");
   const [deleteCandidate, setDeleteCandidate] = useState<DeleteCandidate>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const [openEndpointDropdown, setOpenEndpointDropdown] = useState("");
 
-  const activeCount = useMemo(() => applications.filter((application) => (
-    Object.values(application.endpoints).some(Boolean)
-  )).length, [applications]);
+  const activeCount = useMemo(() => applications.filter((application) => Object.values(application.endpoints).some(Boolean)).length, [applications]);
 
-  function applyData(data: EmailAdminSettingsDTO) {
+  const dirty = useMemo(() => {
+    if (section === "global") return stable(global) !== stable(globalOriginal);
+    if (section === "endpoints") return stable(endpoints.map(normalizeEndpoint)) !== stable(endpointsOriginal.map(normalizeEndpoint));
+    if (section === "platforms") {
+      return stable(applications.map((app) => normalizeApplication(app, endpoints))) !== stable(applicationsOriginal.map((app) => normalizeApplication(app, endpointsOriginal)));
+    }
+    return false;
+  }, [applications, applicationsOriginal, endpoints, endpointsOriginal, global, globalOriginal, section]);
+
+  const applyData = useCallback((data: EmailAdminSettingsDTO) => {
     setForbidden(false);
     setGlobal(data.global);
+    setGlobalOriginal(data.global);
     setEndpoints(data.endpoints);
+    setEndpointsOriginal(data.endpoints);
     setApplications(data.applications);
+    setApplicationsOriginal(data.applications);
     setLogs(data.recent_logs);
-  }
+  }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       applyData(await apiFetch<EmailAdminSettingsDTO>("/api/v1/email/settings"));
@@ -157,14 +222,11 @@ export function EmailAdmin() {
         setForbidden(true);
         return;
       }
-      setAlert({
-        type: "error",
-        message: error instanceof Error ? error.message : "Não foi possível carregar a central de e-mails.",
-      });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel carregar a central de e-mails." });
     } finally {
       setLoading(false);
     }
-  }
+  }, [applyData]);
 
   useEffect(() => {
     let active = true;
@@ -179,48 +241,145 @@ export function EmailAdmin() {
           setForbidden(true);
           return;
         }
-        setAlert({
-          type: "error",
-          message: error instanceof Error ? error.message : "Não foi possível carregar a central de e-mails.",
-        });
+        setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel carregar a central de e-mails." });
       } finally {
         if (active) setLoading(false);
       }
     }
 
     void loadInitial();
-
     return () => {
       active = false;
     };
-  }, []);
+  }, [applyData]);
+
+  useEffect(() => {
+    function beforeUnload(event: BeforeUnloadEvent) {
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [dirty]);
 
   function updateEndpointDefinition(index: number, input: Partial<EmailEndpointDTO>) {
-    setEndpoints((current) => current.map((endpoint, currentIndex) => (
-      currentIndex === index ? { ...endpoint, ...input } : endpoint
-    )));
+    setEndpoints((current) => current.map((endpoint, currentIndex) => (currentIndex === index ? { ...endpoint, ...input } : endpoint)));
   }
 
   function updateApplication(applicationId: string, input: Partial<ApplicationEmailSettingsDTO>) {
-    setApplications((current) => current.map((application) => (
-      application.application_id === applicationId ? { ...application, ...input } : application
-    )));
+    setApplications((current) => current.map((application) => (application.application_id === applicationId ? { ...application, ...input } : application)));
   }
 
   function updateEndpointPermission(applicationId: string, endpointKey: string, enabled: boolean) {
-    setApplications((current) => current.map((application) => (
-      application.application_id === applicationId
-        ? { ...application, endpoints: { ...application.endpoints, [endpointKey]: enabled } }
-        : application
-    )));
-  }
-
-  function getEnabledEndpointCount(application: ApplicationEmailSettingsDTO) {
-    return endpoints.filter((endpoint) => application.endpoints[endpoint.key]).length;
+    setApplications((current) =>
+      current.map((application) =>
+        application.application_id === applicationId
+          ? {
+              ...application,
+              endpoints: {
+                ...application.endpoints,
+                [endpointKey]: enabled,
+              },
+            }
+          : application,
+      ),
+    );
   }
 
   function addEndpoint() {
     setEndpoints((current) => [...current, emptyEndpoint()]);
+  }
+
+  async function saveGlobal() {
+    setSavingGlobal(true);
+    try {
+      const data = await apiFetch<EmailGlobalSettingsDTO>("/api/v1/email/global", { method: "PUT", body: JSON.stringify(global) });
+      setGlobal(data);
+      setGlobalOriginal(data);
+      setAlert({ type: "success", message: "Padrao global salvo." });
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel salvar o padrao global." });
+    } finally {
+      setSavingGlobal(false);
+    }
+  }
+
+  async function saveEndpoint(endpoint: EmailEndpointDTO, index: number) {
+    const normalized = normalizeEndpoint(endpoint);
+    if (!normalized.key) {
+      setAlert({ type: "warning", message: "Informe a chave do endpoint." });
+      return;
+    }
+
+    setSavingEndpointKey(endpoint.id ?? `new-${index}`);
+    try {
+      const original = endpointsOriginal[index];
+      const data = await apiFetch<EmailEndpointDTO>(
+        endpoint.id ? `/api/v1/email/endpoints/${encodeURIComponent(original?.key || endpoint.key)}` : "/api/v1/email/endpoints",
+        { method: endpoint.id ? "PUT" : "POST", body: JSON.stringify(normalized) },
+      );
+
+      setEndpoints((current) => current.map((item, currentIndex) => (currentIndex === index ? data : item)));
+      setEndpointsOriginal((current) => {
+        const copy = [...current];
+        copy[index] = data;
+        return copy;
+      });
+      setApplications((current) => current.map((application) => ({ ...application, endpoints: { ...application.endpoints, [data.key]: application.endpoints[data.key] ?? false } })));
+      setApplicationsOriginal((current) => current.map((application) => ({ ...application, endpoints: { ...application.endpoints, [data.key]: application.endpoints[data.key] ?? false } })));
+      setAlert({ type: "success", message: endpoint.id ? "Endpoint salvo." : "Endpoint criado." });
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel salvar o endpoint." });
+    } finally {
+      setSavingEndpointKey("");
+    }
+  }
+
+  async function saveApplication(application: ApplicationEmailSettingsDTO) {
+    setSavingApplicationId(application.application_id);
+    try {
+      const normalized = normalizeApplication(application, endpoints);
+      const data = await apiFetch<ApplicationEmailSettingsDTO>(`/api/v1/email/applications/${application.application_id}`, {
+        method: "PUT",
+        body: JSON.stringify(normalized),
+      });
+      setApplications((current) => current.map((item) => (item.application_id === data.application_id ? data : item)));
+      setApplicationsOriginal((current) => current.map((item) => (item.application_id === data.application_id ? data : item)));
+      setAlert({ type: "success", message: "Plataforma salva." });
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel salvar a plataforma." });
+    } finally {
+      setSavingApplicationId("");
+    }
+  }
+
+  async function test(application: ApplicationEmailSettingsDTO) {
+    const to = testDraft[application.application_id]?.trim();
+    if (!to) {
+      setAlert({ type: "warning", message: "Informe um destinatario para testar o envio." });
+      return;
+    }
+
+    setTestingId(application.application_id);
+    try {
+      await apiFetch("/api/v1/email/test", { method: "POST", body: JSON.stringify({ application_id: application.application_id, to }) });
+      setAlert({ type: "success", message: "E-mail de teste enviado." });
+      await refreshLogs();
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel enviar o teste." });
+    } finally {
+      setTestingId("");
+    }
+  }
+
+  async function refreshLogs() {
+    try {
+      setLogs(await apiFetch<EmailDeliveryLogDTO[]>("/api/v1/email/logs"));
+    } catch (error) {
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel atualizar os registros." });
+    }
   }
 
   function openDeleteEndpoint(endpoint: EmailEndpointDTO, index: number) {
@@ -234,17 +393,12 @@ export function EmailAdmin() {
     const endpointKey = slugify(deleteCandidate.endpoint.key || deleteCandidate.endpoint.name);
     const expected = `/api/email/${endpointKey}`;
     if (deleteConfirmation.trim() !== expected) {
-      setAlert({ type: "warning", message: "Digite a URL exata do endpoint para confirmar a remoção." });
+      setAlert({ type: "warning", message: "Digite a URL exata do endpoint para confirmar a remocao." });
       return;
     }
 
     if (!deleteCandidate.endpoint.id) {
       setEndpoints((current) => current.filter((_, index) => index !== deleteCandidate.index));
-      setApplications((current) => current.map((application) => {
-        const remainingEndpoints = { ...application.endpoints };
-        delete remainingEndpoints[endpointKey];
-        return { ...application, endpoints: remainingEndpoints };
-      }));
       setDeleteCandidate(null);
       setDeleteConfirmation("");
       return;
@@ -252,87 +406,21 @@ export function EmailAdmin() {
 
     setDeleting(true);
     try {
-      const data = await apiFetch<EmailAdminSettingsDTO>(`/api/v1/email/endpoints/${encodeURIComponent(endpointKey)}`, {
-        method: "DELETE",
-      });
+      const data = await apiFetch<EmailAdminSettingsDTO>(`/api/v1/email/endpoints/${encodeURIComponent(endpointKey)}`, { method: "DELETE" });
       applyData(data);
       setDeleteCandidate(null);
       setDeleteConfirmation("");
       setAlert({ type: "success", message: "Endpoint removido." });
     } catch (error) {
-      setAlert({
-        type: "error",
-        message: error instanceof Error ? error.message : "Não foi possível remover o endpoint.",
-      });
+      setAlert({ type: "error", message: error instanceof Error ? error.message : "Nao foi possivel remover o endpoint." });
     } finally {
       setDeleting(false);
-    }
-  }
-
-  async function save() {
-    setSaving(true);
-    try {
-      const normalizedEndpoints = endpoints.map((endpoint) => ({
-        ...endpoint,
-        key: slugify(endpoint.key || endpoint.name),
-      }));
-      const normalizedApplications = applications.map((application) => ({
-        ...application,
-        endpoints: Object.fromEntries(normalizedEndpoints.map((endpoint) => [
-          endpoint.key,
-          application.endpoints[endpoint.key] ?? false,
-        ])),
-      }));
-
-      const data = await apiFetch<EmailAdminSettingsDTO>("/api/v1/email/settings", {
-        method: "PUT",
-        body: JSON.stringify({
-          global,
-          endpoints: normalizedEndpoints,
-          applications: normalizedApplications,
-        }),
-      });
-      applyData(data);
-      setAlert({ type: "success", message: "Configurações de e-mail atualizadas." });
-    } catch (error) {
-      setAlert({
-        type: "error",
-        message: error instanceof Error ? error.message : "Não foi possível salvar as configurações.",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function test(application: ApplicationEmailSettingsDTO) {
-    const to = testDraft[application.application_id]?.trim();
-    if (!to) {
-      setAlert({ type: "warning", message: "Informe um destinatário para testar o envio." });
-      return;
-    }
-
-    setTestingId(application.application_id);
-    try {
-      await apiFetch("/api/v1/email/test", {
-        method: "POST",
-        body: JSON.stringify({ application_id: application.application_id, to }),
-      });
-      setAlert({ type: "success", message: "E-mail de teste enviado." });
-      await load();
-    } catch (error) {
-      setAlert({
-        type: "error",
-        message: error instanceof Error ? error.message : "Não foi possível enviar o teste.",
-      });
-    } finally {
-      setTestingId("");
     }
   }
 
   return (
     <AppShell title="E-mails">
       {alert ? <SystemAlert {...alert} onClose={() => setAlert(null)} /> : null}
-
       <div className="space-y-5">
         <section className="panel p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -343,19 +431,13 @@ export function EmailAdmin() {
               </p>
               <h1 className="text-2xl font-semibold text-white">E-mails</h1>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-                Configure endpoints, padrões de envio e quais plataformas podem usar cada rota.
+                Configure o padrao visual, endpoints, plataformas autorizadas e registros recentes.
               </p>
             </div>
             {!forbidden ? (
-              <div className="flex gap-2">
-                <button className="btn-secondary px-3" type="button" onClick={() => void load()} title="Atualizar">
-                  <RefreshCw size={16} aria-hidden="true" />
-                </button>
-                <button className="btn-primary" type="button" disabled={saving} onClick={() => void save()}>
-                  <Save size={16} aria-hidden="true" />
-                  {saving ? "Salvando..." : "Salvar"}
-                </button>
-              </div>
+              <button className="btn-secondary px-3" type="button" onClick={() => void load()} title="Atualizar tudo">
+                <RefreshCw size={16} aria-hidden="true" />
+              </button>
             ) : null}
           </div>
         </section>
@@ -363,242 +445,96 @@ export function EmailAdmin() {
         {forbidden ? (
           <section className="panel px-5 py-10 text-center">
             <Mail className="mx-auto mb-3 text-slate-500" size={30} aria-hidden="true" />
-            <h2 className="text-lg font-semibold text-white">Sem acesso à central de e-mails</h2>
+            <h2 className="text-lg font-semibold text-white">Sem acesso a central de e-mails</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-400">
-              Sua conta pode acessar o Nexus, perfil e plataformas liberadas, mas a configuração de e-mails é restrita a administradores.
+              Sua conta pode acessar o Nexus, perfil e plataformas liberadas, mas a configuracao de e-mails e restrita a administradores.
             </p>
           </section>
         ) : loading ? (
-          <section className="panel p-6 text-sm text-slate-300">Carregando configurações...</section>
+          <section className="panel p-6 text-sm text-slate-300">Carregando configuracoes...</section>
         ) : (
-          <>
-            <section className="panel p-5">
-              <div className="mb-5 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-white">Padrão global</h2>
-                  <p className="text-sm text-slate-400">Usado quando a plataforma não tiver sobrescritas próprias.</p>
-                </div>
-                <span className="rounded-md border border-emerald-400/25 bg-emerald-950/25 px-2 py-1 text-xs font-medium text-emerald-100">
-                  {activeCount} plataforma(s) com endpoint liberado
-                </span>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Nome exibido">
-                  <input className="field" value={global.display_name} onChange={(event) => setGlobal({ ...global, display_name: event.target.value })} />
-                </Field>
-                <Field label="Logo URL">
-                  <input className="field" value={global.logo_url ?? ""} onChange={(event) => setGlobal({ ...global, logo_url: event.target.value })} />
-                </Field>
-                <Field label="Cor principal">
-                  <input className="field h-11" type="color" value={global.primary_color} onChange={(event) => setGlobal({ ...global, primary_color: event.target.value })} />
-                </Field>
-                <Field label="Rodapé">
-                  <textarea className="field min-h-24" value={global.footer_text} onChange={(event) => setGlobal({ ...global, footer_text: event.target.value })} />
-                </Field>
-              </div>
-            </section>
-
-            <section className="panel p-5">
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-white">Endpoints</h2>
-                  <p className="text-sm text-slate-400">Cada chave vira uma rota, como /api/email/equipamento-solicitado.</p>
-                </div>
-                <button className="btn-secondary" type="button" onClick={addEndpoint}>
-                  <Plus size={16} aria-hidden="true" />
-                  Novo endpoint
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {endpoints.map((endpoint, index) => {
-                  const keyPreview = slugify(endpoint.key || endpoint.name) || "nova-chave";
-
-                  return (
-                    <article key={`${endpoint.id ?? "new"}-${index}`} className="rounded-lg border border-slate-800 bg-slate-950/45 p-4">
-                      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-white">{endpoint.name || "Novo endpoint"}</p>
-                          <p className="text-xs text-cyan-300">/api/email/{keyPreview}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-200">
-                            <input
-                              type="checkbox"
-                              checked={endpoint.active}
-                              onChange={(event) => updateEndpointDefinition(index, { active: event.target.checked })}
-                            />
-                            Ativo
-                          </label>
-                          <button
-                            className="btn-secondary min-h-9 px-2 py-2 text-slate-400 hover:border-rose-400/45 hover:text-rose-200"
-                            type="button"
-                            title="Remover endpoint"
-                            onClick={() => openDeleteEndpoint(endpoint, index)}
-                          >
-                            <Trash2 size={15} aria-hidden="true" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <Field label="Nome">
-                          <input
-                            className="field"
-                            value={endpoint.name}
-                            onChange={(event) => updateEndpointDefinition(index, {
-                              name: event.target.value,
-                              key: endpoint.key || slugify(event.target.value),
-                            })}
-                          />
-                        </Field>
-                        <Field label="Chave" description="Usada na URL da API.">
-                          <input
-                            className="field"
-                            value={endpoint.key}
-                            onChange={(event) => updateEndpointDefinition(index, { key: slugify(event.target.value) })}
-                          />
-                        </Field>
-                        <Field label="Descrição">
-                          <input className="field" value={endpoint.description ?? ""} onChange={(event) => updateEndpointDefinition(index, { description: event.target.value })} />
-                        </Field>
-                        <Field label="Assunto padrão">
-                          <input className="field" value={endpoint.default_subject ?? ""} onChange={(event) => updateEndpointDefinition(index, { default_subject: event.target.value })} />
-                        </Field>
-                        <Field label="Título padrão">
-                          <input className="field" value={endpoint.default_title ?? ""} onChange={(event) => updateEndpointDefinition(index, { default_title: event.target.value })} />
-                        </Field>
-                        <Field label="Botão padrão">
-                          <input className="field" value={endpoint.default_action_label ?? ""} onChange={(event) => updateEndpointDefinition(index, { default_action_label: event.target.value })} />
-                        </Field>
-                        <div className="md:col-span-2">
-                          <Field label="Mensagem padrão" description="Pode ficar vazia se a plataforma enviar a mensagem no payload.">
-                            <textarea className="field min-h-24" value={endpoint.default_message ?? ""} onChange={(event) => updateEndpointDefinition(index, { default_message: event.target.value })} />
-                          </Field>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-2">
-              {applications.map((application) => (
-                <article key={application.application_id} className="panel p-5">
-                  <div className="mb-5 flex items-start gap-3">
-                    <ApplicationLogo name={application.application_nome} logoUrl={application.application_logo_url} size="md" />
-                    <div className="min-w-0 flex-1">
-                      <h2 className="truncate text-lg font-semibold text-white">{application.application_nome}</h2>
-                      <p className="truncate text-xs text-slate-500">{application.application_client_id}</p>
+          <div className="flex flex-col gap-4 lg:flex-row">
+            <EmailSidebar section={section} dirty={dirty} />
+            <main className="min-w-0 flex-1">
+              {section === "global" ? (
+                <section className="panel p-5">
+                  <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-white">Padrao global</h2>
+                      <p className="text-sm text-slate-400">Usado quando a plataforma nao tiver sobrescritas proprias.</p>
                     </div>
-                  </div>
-
-                  <div className="relative mb-4">
-                    <button
-                      className={`btn-secondary w-full justify-between sm:w-auto ${
-                        getEnabledEndpointCount(application) > 0 ? "border-cyan-300/60 bg-cyan-500/15 text-cyan-100" : ""
-                      }`}
-                      type="button"
-                      onClick={() => setOpenEndpointDropdown((current) => (
-                        current === application.application_id ? "" : application.application_id
-                      ))}
-                    >
-                      <span>
-                        Endpoints liberados
-                        {getEnabledEndpointCount(application) > 0 ? ` (${getEnabledEndpointCount(application)})` : ""}
-                      </span>
-                      <ChevronDown size={16} aria-hidden="true" />
+                    <button className="btn-primary" type="button" disabled={!dirty || savingGlobal} onClick={() => void saveGlobal()}>
+                      <Save size={16} aria-hidden="true" />
+                      {savingGlobal ? "Salvando..." : "Salvar padrao global"}
                     </button>
-
-                    {openEndpointDropdown === application.application_id ? (
-                      <div className="absolute left-0 z-30 mt-2 w-full max-w-md overflow-hidden rounded-lg border border-slate-700 bg-slate-950/95 shadow-2xl shadow-slate-950/70">
-                        <div className="border-b border-slate-800 px-4 py-3">
-                          <p className="text-sm font-semibold text-white">Endpoints</p>
-                          <p className="text-xs text-slate-400">Selecione as APIs que esta plataforma pode usar.</p>
-                        </div>
-                        <div className="max-h-72 overflow-y-auto p-2">
-                          {endpoints.length === 0 ? (
-                            <p className="px-3 py-3 text-sm text-slate-400">Nenhum endpoint cadastrado.</p>
-                          ) : endpoints.map((endpoint) => (
-                            <label
-                              key={endpoint.key}
-                              className="flex cursor-pointer items-start gap-3 rounded-md px-3 py-2 text-sm text-slate-200 transition hover:bg-slate-900/80"
-                            >
-                              <input
-                                className="mt-1"
-                                type="checkbox"
-                                checked={application.endpoints[endpoint.key] ?? false}
-                                onChange={(event) => updateEndpointPermission(application.application_id, endpoint.key, event.target.checked)}
-                              />
-                              <span className="min-w-0">
-                                <span className="block font-semibold text-white">{endpoint.name || endpoint.key}</span>
-                                <span className="block truncate text-xs text-cyan-300">/api/email/{endpoint.key || "chave"}</span>
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
                   </div>
-
                   <div className="grid gap-4 md:grid-cols-2">
-                    <Field label="Domínios permitidos" description="Um domínio por linha, como rarotec.com.br.">
-                      <textarea
-                        className="field min-h-28"
-                        value={arrayToLines(application.allowed_recipient_domains)}
-                        onChange={(event) => updateApplication(application.application_id, {
-                          allowed_recipient_domains: linesToArray(event.target.value),
-                        })}
-                      />
-                    </Field>
-                    <Field label="Responder para" description="Opcional. Usado como Reply-To.">
-                      <input className="field" value={application.reply_to_email ?? ""} onChange={(event) => updateApplication(application.application_id, { reply_to_email: event.target.value })} />
-                    </Field>
                     <Field label="Nome exibido">
-                      <input className="field" value={application.display_name ?? ""} onChange={(event) => updateApplication(application.application_id, { display_name: event.target.value })} />
+                      <input className="field" value={global.display_name} onChange={(event) => setGlobal({ ...global, display_name: event.target.value })} />
                     </Field>
                     <Field label="Logo URL">
-                      <input className="field" value={application.logo_url ?? ""} onChange={(event) => updateApplication(application.application_id, { logo_url: event.target.value })} />
+                      <input className="field" value={global.logo_url ?? ""} onChange={(event) => setGlobal({ ...global, logo_url: event.target.value })} />
                     </Field>
                     <Field label="Cor principal">
-                      <input className="field h-11" type="color" value={application.primary_color || global.primary_color} onChange={(event) => updateApplication(application.application_id, { primary_color: event.target.value })} />
+                      <input className="field h-11" type="color" value={global.primary_color} onChange={(event) => setGlobal({ ...global, primary_color: event.target.value })} />
                     </Field>
-                    <Field label="Rodapé">
-                      <textarea className="field min-h-24" value={application.footer_text ?? ""} onChange={(event) => updateApplication(application.application_id, { footer_text: event.target.value })} />
+                    <Field label="Rodape">
+                      <textarea className="field min-h-24" value={global.footer_text} onChange={(event) => setGlobal({ ...global, footer_text: event.target.value })} />
                     </Field>
                   </div>
+                  <p className="mt-4 text-xs text-slate-500">{activeCount} plataforma(s) com pelo menos um endpoint liberado.</p>
+                </section>
+              ) : null}
 
-                  <div className="mt-4 flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-950/45 p-3 sm:flex-row sm:items-center">
-                    <ShieldCheck size={18} className="text-cyan-300" aria-hidden="true" />
-                    <input
-                      className="field min-h-10 flex-1 py-2"
-                      placeholder="destinatario@dominio.com"
-                      value={testDraft[application.application_id] ?? ""}
-                      onChange={(event) => setTestDraft((current) => ({ ...current, [application.application_id]: event.target.value }))}
-                    />
-                    <button
-                      className="btn-secondary min-h-10 px-3 py-2"
-                      type="button"
-                      disabled={testingId === application.application_id}
-                      onClick={() => void test(application)}
-                    >
-                      <Send size={15} aria-hidden="true" />
-                      {testingId === application.application_id ? "Enviando..." : "Testar"}
+              {section === "endpoints" ? (
+                <EndpointSection
+                  endpoints={endpoints}
+                  endpointsOriginal={endpointsOriginal}
+                  savingEndpointKey={savingEndpointKey}
+                  onAdd={addEndpoint}
+                  onChange={updateEndpointDefinition}
+                  onSave={saveEndpoint}
+                  onDelete={openDeleteEndpoint}
+                />
+              ) : null}
+
+              {section === "platforms" ? (
+                <PlatformSection
+                  applications={applications}
+                  applicationsOriginal={applicationsOriginal}
+                  endpoints={endpoints}
+                  endpointsOriginal={endpointsOriginal}
+                  global={global}
+                  openEndpointDropdown={openEndpointDropdown}
+                  savingApplicationId={savingApplicationId}
+                  testingId={testingId}
+                  testDraft={testDraft}
+                  onToggleDropdown={setOpenEndpointDropdown}
+                  onEndpointPermission={updateEndpointPermission}
+                  onApplicationChange={updateApplication}
+                  onSave={saveApplication}
+                  onTest={test}
+                  onTestDraftChange={setTestDraft}
+                />
+              ) : null}
+
+              {section === "logs" ? (
+                <section className="panel p-5">
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-white">Registros</h2>
+                      <p className="text-sm text-slate-400">Ultimos 50 envios. O corpo dos e-mails nao e armazenado.</p>
+                    </div>
+                    <button className="btn-secondary" type="button" onClick={() => void refreshLogs()}>
+                      <RefreshCw size={16} aria-hidden="true" />
+                      Atualizar
                     </button>
                   </div>
-                </article>
-              ))}
-            </section>
-
-            <section className="panel p-5">
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-white">Envios recentes</h2>
-                <p className="text-sm text-slate-400">Auditoria técnica sem armazenar o corpo dos e-mails.</p>
-              </div>
-              <LogList logs={logs} />
-            </section>
-          </>
+                  <LogList logs={logs} />
+                </section>
+              ) : null}
+            </main>
+          </div>
         )}
       </div>
 
@@ -609,23 +545,16 @@ export function EmailAdmin() {
               <div>
                 <h2 className="text-lg font-semibold text-white">Remover endpoint?</h2>
                 <p className="mt-1 text-sm leading-6 text-slate-400">
-                  Essa ação remove a rota da central e todas as permissões das plataformas para este endpoint.
+                  Essa acao remove a rota da central e todas as permissoes das plataformas para este endpoint.
                 </p>
               </div>
-              <button
-                className="btn-secondary min-h-9 px-3 py-2"
-                type="button"
-                onClick={() => setDeleteCandidate(null)}
-                title="Fechar"
-              >
+              <button className="btn-secondary min-h-9 px-3 py-2" type="button" onClick={() => setDeleteCandidate(null)} title="Fechar">
                 <X size={18} aria-hidden="true" />
               </button>
             </div>
-
             <div className="rounded-lg border border-rose-400/20 bg-rose-950/20 p-3 text-sm text-rose-100">
               Digite <strong>/api/email/{slugify(deleteCandidate.endpoint.key || deleteCandidate.endpoint.name)}</strong> para confirmar.
             </div>
-
             <div className="mt-4">
               <Field label="URL do endpoint">
                 <input
@@ -637,7 +566,6 @@ export function EmailAdmin() {
                 />
               </Field>
             </div>
-
             <div className="mt-5 flex justify-center">
               <button
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-rose-400/35 bg-rose-500/15 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:border-rose-300/70 hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-55"
@@ -653,5 +581,225 @@ export function EmailAdmin() {
         </div>
       ) : null}
     </AppShell>
+  );
+}
+
+function EndpointSection({
+  endpoints,
+  endpointsOriginal,
+  savingEndpointKey,
+  onAdd,
+  onChange,
+  onSave,
+  onDelete,
+}: {
+  endpoints: EmailEndpointDTO[];
+  endpointsOriginal: EmailEndpointDTO[];
+  savingEndpointKey: string;
+  onAdd: () => void;
+  onChange: (index: number, input: Partial<EmailEndpointDTO>) => void;
+  onSave: (endpoint: EmailEndpointDTO, index: number) => Promise<void>;
+  onDelete: (endpoint: EmailEndpointDTO, index: number) => void;
+}) {
+  return (
+    <section className="panel p-5">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Endpoints</h2>
+          <p className="text-sm text-slate-400">Cada chave vira uma rota, como /api/email/equipamento-solicitado.</p>
+        </div>
+        <button className="btn-secondary" type="button" onClick={onAdd}>
+          <Plus size={16} aria-hidden="true" />
+          Novo endpoint
+        </button>
+      </div>
+      <div className="space-y-4">
+        {endpoints.map((endpoint, index) => {
+          const normalized = normalizeEndpoint(endpoint);
+          const original = endpointsOriginal[index] ? normalizeEndpoint(endpointsOriginal[index]) : null;
+          const endpointDirty = stable(normalized) !== stable(original);
+          const saveKey = endpoint.id ?? `new-${index}`;
+          const protectedEndpoint = endpoint.key === "send" || endpoint.key === "test";
+
+          return (
+            <article key={`${endpoint.id ?? "new"}-${index}`} className="rounded-lg border border-slate-800 bg-slate-950/45 p-4">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white">{endpoint.name || "Novo endpoint"}</p>
+                  <p className="text-xs text-cyan-300">/api/email/{normalized.key || "nova-chave"}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-200">
+                    <input type="checkbox" checked={endpoint.active} onChange={(event) => onChange(index, { active: event.target.checked })} />
+                    Ativo
+                  </label>
+                  <button className="btn-primary min-h-9" type="button" disabled={!endpointDirty || savingEndpointKey === saveKey} onClick={() => void onSave(endpoint, index)}>
+                    <Save size={15} aria-hidden="true" />
+                    {endpoint.id ? "Salvar endpoint" : "Criar endpoint"}
+                  </button>
+                  <button
+                    className="btn-secondary min-h-9 px-2 py-2 text-slate-400 hover:border-rose-400/45 hover:text-rose-200 disabled:opacity-40"
+                    type="button"
+                    title={protectedEndpoint ? "Endpoint protegido" : "Remover endpoint"}
+                    disabled={protectedEndpoint}
+                    onClick={() => onDelete(endpoint, index)}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Nome">
+                  <input className="field" value={endpoint.name} onChange={(event) => onChange(index, { name: event.target.value, key: endpoint.key || slugify(event.target.value) })} />
+                </Field>
+                <Field label="Chave" description="Usada na URL da API.">
+                  <input className="field" value={endpoint.key} onChange={(event) => onChange(index, { key: slugify(event.target.value) })} />
+                </Field>
+                <Field label="Descricao">
+                  <input className="field" value={endpoint.description ?? ""} onChange={(event) => onChange(index, { description: event.target.value })} />
+                </Field>
+                <Field label="Assunto padrao">
+                  <input className="field" value={endpoint.default_subject ?? ""} onChange={(event) => onChange(index, { default_subject: event.target.value })} />
+                </Field>
+                <Field label="Titulo padrao">
+                  <input className="field" value={endpoint.default_title ?? ""} onChange={(event) => onChange(index, { default_title: event.target.value })} />
+                </Field>
+                <Field label="Botao padrao">
+                  <input className="field" value={endpoint.default_action_label ?? ""} onChange={(event) => onChange(index, { default_action_label: event.target.value })} />
+                </Field>
+                <div className="md:col-span-2">
+                  <Field label="Mensagem padrao" description="Pode ficar vazia se a plataforma enviar a mensagem no payload.">
+                    <textarea className="field min-h-24" value={endpoint.default_message ?? ""} onChange={(event) => onChange(index, { default_message: event.target.value })} />
+                  </Field>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function PlatformSection({
+  applications,
+  applicationsOriginal,
+  endpoints,
+  endpointsOriginal,
+  global,
+  openEndpointDropdown,
+  savingApplicationId,
+  testingId,
+  testDraft,
+  onToggleDropdown,
+  onEndpointPermission,
+  onApplicationChange,
+  onSave,
+  onTest,
+  onTestDraftChange,
+}: {
+  applications: ApplicationEmailSettingsDTO[];
+  applicationsOriginal: ApplicationEmailSettingsDTO[];
+  endpoints: EmailEndpointDTO[];
+  endpointsOriginal: EmailEndpointDTO[];
+  global: EmailGlobalSettingsDTO;
+  openEndpointDropdown: string;
+  savingApplicationId: string;
+  testingId: string;
+  testDraft: Record<string, string>;
+  onToggleDropdown: (id: string) => void;
+  onEndpointPermission: (applicationId: string, endpointKey: string, enabled: boolean) => void;
+  onApplicationChange: (applicationId: string, input: Partial<ApplicationEmailSettingsDTO>) => void;
+  onSave: (application: ApplicationEmailSettingsDTO) => Promise<void>;
+  onTest: (application: ApplicationEmailSettingsDTO) => Promise<void>;
+  onTestDraftChange: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+}) {
+  return (
+    <section className="grid gap-4 xl:grid-cols-2">
+      {applications.map((application) => {
+        const normalized = normalizeApplication(application, endpoints);
+        const original = applicationsOriginal.find((item) => item.application_id === application.application_id);
+        const applicationDirty = stable(normalized) !== stable(original ? normalizeApplication(original, endpointsOriginal) : null);
+        const enabledCount = endpoints.filter((endpoint) => application.endpoints[endpoint.key]).length;
+
+        return (
+          <article key={application.application_id} className="panel p-5">
+            <div className="mb-5 flex items-start gap-3">
+              <ApplicationLogo name={application.application_nome} logoUrl={application.application_logo_url} size="md" />
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-lg font-semibold text-white">{application.application_nome}</h2>
+                <p className="truncate text-xs text-slate-500">{application.application_client_id}</p>
+              </div>
+              <button className="btn-primary min-h-9" type="button" disabled={!applicationDirty || savingApplicationId === application.application_id} onClick={() => void onSave(application)}>
+                <Save size={15} aria-hidden="true" />
+                Salvar
+              </button>
+            </div>
+            <div className="relative mb-4">
+              <button
+                className={`btn-secondary w-full justify-between sm:w-auto ${enabledCount > 0 ? "border-cyan-300/60 bg-cyan-500/15 text-cyan-100" : ""}`}
+                type="button"
+                onClick={() => onToggleDropdown(openEndpointDropdown === application.application_id ? "" : application.application_id)}
+              >
+                <span>Endpoints liberados{enabledCount > 0 ? ` (${enabledCount})` : ""}</span>
+                <ChevronDown size={16} aria-hidden="true" />
+              </button>
+              {openEndpointDropdown === application.application_id ? (
+                <div className="absolute left-0 z-30 mt-2 w-full max-w-md overflow-hidden rounded-lg border border-slate-700 bg-slate-950/95 shadow-2xl shadow-slate-950/70">
+                  <div className="border-b border-slate-800 px-4 py-3">
+                    <p className="text-sm font-semibold text-white">Endpoints</p>
+                    <p className="text-xs text-slate-400">Selecione as APIs que esta plataforma pode usar.</p>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto p-2">
+                    {endpoints.map((endpoint) => (
+                      <label key={endpoint.key} className="flex cursor-pointer items-start gap-3 rounded-md px-3 py-2 text-sm text-slate-200 transition hover:bg-slate-900/80">
+                        <input className="mt-1" type="checkbox" checked={application.endpoints[endpoint.key] ?? false} onChange={(event) => onEndpointPermission(application.application_id, endpoint.key, event.target.checked)} />
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-white">{endpoint.name || endpoint.key}</span>
+                          <span className="block truncate text-xs text-cyan-300">/api/email/{endpoint.key || "chave"}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Dominios permitidos" description="Deixe vazio para aceitar qualquer dominio. Um dominio por linha quando quiser restringir.">
+                <textarea className="field min-h-28" value={arrayToLines(application.allowed_recipient_domains)} onChange={(event) => onApplicationChange(application.application_id, { allowed_recipient_domains: linesToArray(event.target.value) })} />
+              </Field>
+              <Field label="Responder para" description="Opcional. Usado como Reply-To.">
+                <input className="field" value={application.reply_to_email ?? ""} onChange={(event) => onApplicationChange(application.application_id, { reply_to_email: event.target.value })} />
+              </Field>
+              <Field label="Nome exibido">
+                <input className="field" value={application.display_name ?? ""} onChange={(event) => onApplicationChange(application.application_id, { display_name: event.target.value })} />
+              </Field>
+              <Field label="Logo URL">
+                <input className="field" value={application.logo_url ?? ""} onChange={(event) => onApplicationChange(application.application_id, { logo_url: event.target.value })} />
+              </Field>
+              <Field label="Cor principal">
+                <input className="field h-11" type="color" value={application.primary_color || global.primary_color} onChange={(event) => onApplicationChange(application.application_id, { primary_color: event.target.value })} />
+              </Field>
+              <Field label="Rodape">
+                <textarea className="field min-h-24" value={application.footer_text ?? ""} onChange={(event) => onApplicationChange(application.application_id, { footer_text: event.target.value })} />
+              </Field>
+            </div>
+            <div className="mt-4 flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-950/45 p-3 sm:flex-row sm:items-center">
+              <ShieldCheck size={18} className="text-cyan-300" aria-hidden="true" />
+              <input
+                className="field min-h-10 flex-1 py-2"
+                placeholder="destinatario@dominio.com"
+                value={testDraft[application.application_id] ?? ""}
+                onChange={(event) => onTestDraftChange((current) => ({ ...current, [application.application_id]: event.target.value }))}
+              />
+              <button className="btn-secondary min-h-10 px-3 py-2" type="button" disabled={testingId === application.application_id} onClick={() => void onTest(application)}>
+                <Send size={15} aria-hidden="true" />
+                {testingId === application.application_id ? "Enviando..." : "Testar"}
+              </button>
+            </div>
+          </article>
+        );
+      })}
+    </section>
   );
 }

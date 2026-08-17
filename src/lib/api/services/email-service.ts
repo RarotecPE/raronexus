@@ -18,6 +18,9 @@ import type {
 import type { z } from "zod";
 import type {
   adminEmailTestSchema,
+  applicationEmailSettingsInputSchema,
+  emailEndpointInputSchema,
+  emailGlobalSettingsSchema,
   sendEmailSchema,
   testEmailSchema,
   updateEmailAdminSettingsSchema,
@@ -27,6 +30,9 @@ type SendInput = z.infer<typeof sendEmailSchema>;
 type TestInput = z.infer<typeof testEmailSchema>;
 type UpdateSettingsInput = z.infer<typeof updateEmailAdminSettingsSchema>;
 type AdminTestInput = z.infer<typeof adminEmailTestSchema>;
+type GlobalSettingsInput = z.infer<typeof emailGlobalSettingsSchema>;
+type EndpointInput = z.infer<typeof emailEndpointInputSchema>;
+type ApplicationSettingsInput = z.infer<typeof applicationEmailSettingsInputSchema>;
 
 export class EmailService {
   private readonly supabase = createAdminSupabaseClient();
@@ -71,6 +77,7 @@ export class EmailService {
       provider_message_id: input.providerMessageId ?? null,
       metadata: input.metadata ?? {},
     });
+    await this.emails.pruneLogs(50);
   }
 
   private toGlobalDTO(settings: Awaited<ReturnType<EmailRepository["getGlobalSettings"]>>): EmailGlobalSettingsDTO {
@@ -208,6 +215,96 @@ export class EmailService {
     return this.listAdminSettings(context);
   }
 
+  async updateGlobalSettings(context: AuthenticatedContext, input: GlobalSettingsInput) {
+    this.requireAdmin(context);
+    const settings = await this.emails.updateGlobalSettings({
+      display_name: input.display_name,
+      logo_url: this.normalizeOptional(input.logo_url),
+      primary_color: input.primary_color,
+      footer_text: input.footer_text,
+    });
+
+    return this.toGlobalDTO(settings);
+  }
+
+  private normalizeEndpointInput(input: EndpointInput) {
+    return {
+      key: input.key,
+      name: input.name,
+      description: this.normalizeOptional(input.description),
+      active: input.active,
+      default_subject: this.normalizeOptional(input.default_subject),
+      default_title: this.normalizeOptional(input.default_title),
+      default_message: this.normalizeOptional(input.default_message),
+      default_action_label: this.normalizeOptional(input.default_action_label),
+    };
+  }
+
+  async createEndpoint(context: AuthenticatedContext, input: EndpointInput) {
+    this.requireAdmin(context);
+    const endpoint = await this.emails.upsertEndpoint(this.normalizeEndpointInput(input));
+    return this.toEndpointDTO(endpoint);
+  }
+
+  async updateEndpoint(context: AuthenticatedContext, currentKey: EmailEndpointKey, input: EndpointInput) {
+    this.requireAdmin(context);
+    if ((currentKey === "send" || currentKey === "test") && input.key !== currentKey) {
+      throw new ApiException("Endpoints internos da central nao podem ter a chave alterada.", "EMAIL_ENDPOINT_PROTECTED", 409);
+    }
+
+    const existing = await this.emails.findEndpointByKey(currentKey);
+    if (!existing) {
+      throw new ApiException("Endpoint de e-mail nao encontrado.", "EMAIL_ENDPOINT_NOT_FOUND", 404);
+    }
+
+    const endpoint = await this.emails.updateEndpointByKey(currentKey, this.normalizeEndpointInput(input));
+    if (currentKey !== input.key) {
+      await this.emails.updateEndpointPermissionKey(currentKey, input.key);
+    }
+
+    return this.toEndpointDTO(endpoint);
+  }
+
+  async updateApplicationSettings(context: AuthenticatedContext, applicationId: string, input: ApplicationSettingsInput) {
+    this.requireAdmin(context);
+    if (applicationId !== input.application_id) {
+      throw new ApiException("Aplicacao invalida.", "APPLICATION_ID_MISMATCH", 400);
+    }
+
+    const application = await this.applications.findById(applicationId);
+    if (!application) {
+      throw new ApiException("Aplicacao nao encontrada.", "APPLICATION_NOT_FOUND", 404);
+    }
+
+    await this.emails.upsertApplicationSettings({
+      application_id: input.application_id,
+      display_name: this.normalizeOptional(input.display_name),
+      logo_url: this.normalizeOptional(input.logo_url),
+      primary_color: this.normalizeOptional(input.primary_color),
+      footer_text: this.normalizeOptional(input.footer_text),
+      reply_to_email: this.normalizeOptional(input.reply_to_email),
+      allowed_recipient_domains: Array.from(new Set(input.allowed_recipient_domains.map((domain) => domain.toLowerCase()))),
+    });
+
+    await Promise.all(Object.entries(input.endpoints).map(([endpoint, enabled]) => (
+      this.emails.upsertEndpointPermission(applicationId, endpoint, enabled)
+    )));
+
+    const [setting, permissions, endpoints] = await Promise.all([
+      this.emails.findApplicationSettings(applicationId),
+      this.emails.listEndpointPermissionsForApplication(applicationId),
+      this.emails.listEndpoints(),
+    ]);
+
+    return this.mergeApplicationEmailSettings(application, setting, permissions, endpoints);
+  }
+
+  async listLogs(context: AuthenticatedContext) {
+    this.requireAdmin(context);
+    const logs = await this.emails.listRecentLogs(50);
+    return logs.map((log) => this.toLogDTO(log));
+  }
+
   async deleteEndpoint(context: AuthenticatedContext, key: string) {
     this.requireAdmin(context);
     if (key === "send" || key === "test") {
@@ -258,7 +355,7 @@ export class EmailService {
   private ensureAllowedRecipients(setting: ApplicationEmailSettingsRow | null, recipients: string[]) {
     const allowedDomains = new Set((setting?.allowed_recipient_domains ?? []).map((domain) => domain.toLowerCase()));
     if (allowedDomains.size === 0) {
-      throw new ApiException("Nenhum dominio de destinatario liberado para esta aplicacao.", "EMAIL_DOMAIN_NOT_ALLOWED", 403);
+      return;
     }
 
     const invalid = recipients.filter((email) => {

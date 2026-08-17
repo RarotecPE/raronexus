@@ -139,6 +139,27 @@ export class EmailRepository {
     return data;
   }
 
+  async updateEndpointByKey(currentKey: string, input: Partial<EmailEndpointRow> & { key: string; name: string }) {
+    const { data, error } = await this.supabase
+      .from("email_endpoints")
+      .update({ ...input, updated_at: new Date().toISOString() })
+      .eq("key", currentKey)
+      .select("*")
+      .single<EmailEndpointRow>();
+
+    if (error) throwEmailSchemaError(error);
+    return data;
+  }
+
+  async updateEndpointPermissionKey(currentKey: string, nextKey: string) {
+    const { error } = await this.supabase
+      .from("application_email_endpoint_permissions")
+      .update({ endpoint: nextKey, updated_at: new Date().toISOString() })
+      .eq("endpoint", currentKey);
+
+    if (error) throwEmailSchemaError(error);
+  }
+
   async deleteEndpoint(key: string) {
     const permissions = await this.supabase
       .from("application_email_endpoint_permissions")
@@ -203,5 +224,24 @@ export class EmailRepository {
 
     if (error) throw error;
     return data;
+  }
+
+  async pruneLogs(limit = 50) {
+    const { data, error } = await this.supabase
+      .from("email_delivery_logs")
+      .select("id")
+      .order("created_at", { ascending: false })
+      .range(limit, 100000);
+
+    if (error) throwEmailSchemaError(error);
+    const ids = (data ?? []).map((item) => item.id);
+    if (ids.length === 0) return;
+
+    const deleted = await this.supabase
+      .from("email_delivery_logs")
+      .delete()
+      .in("id", ids);
+
+    if (deleted.error) throwEmailSchemaError(deleted.error);
   }
 }

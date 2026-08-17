@@ -41,19 +41,21 @@ export const applicationEmailSettingsInputSchema = z.object({
   endpoints: z.record(emailEndpointSchema, z.boolean()),
 });
 
+export const emailEndpointInputSchema = z.object({
+  id: z.uuid().optional(),
+  key: emailEndpointSchema,
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(1000).optional().nullable(),
+  active: z.boolean(),
+  default_subject: optionalPlainTextSchema(160),
+  default_title: optionalPlainTextSchema(140),
+  default_message: optionalPlainTextSchema(4000),
+  default_action_label: optionalPlainTextSchema(60),
+});
+
 export const updateEmailAdminSettingsSchema = z.object({
   global: emailGlobalSettingsSchema,
-  endpoints: z.array(z.object({
-    id: z.uuid().optional(),
-    key: emailEndpointSchema,
-    name: z.string().trim().min(2).max(120),
-    description: z.string().trim().max(1000).optional().nullable(),
-    active: z.boolean(),
-    default_subject: optionalPlainTextSchema(160),
-    default_title: optionalPlainTextSchema(140),
-    default_message: optionalPlainTextSchema(4000),
-    default_action_label: optionalPlainTextSchema(60),
-  })).min(1),
+  endpoints: z.array(emailEndpointInputSchema).min(1),
   applications: z.array(applicationEmailSettingsInputSchema),
 });
 

@@ -1,5 +1,5 @@
-import { EmailAdmin } from "@/components/admin/email-admin";
+import { redirect } from "next/navigation";
 
 export default function AdminEmailsPage() {
-  return <EmailAdmin />;
+  redirect("/admin/emails/global");
 }
