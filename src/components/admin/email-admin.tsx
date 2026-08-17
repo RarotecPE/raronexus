@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Globe2, ListChecks, Mail, Plus, RefreshCw, Save, ScrollText, Send, Server, ShieldCheck, Trash2, X } from "lucide-react";
+import { ChevronDown, Eye, Globe2, ListChecks, Mail, Plus, RefreshCw, Save, ScrollText, Send, Server, ShieldCheck, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ApplicationLogo } from "@/components/applications/application-logo";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
@@ -104,6 +104,14 @@ function Field({ label, description, children }: { label: string; description?: 
       {children}
     </label>
   );
+}
+
+function buildEndpointPreviewHtml(template: string, logoUrl?: string | null) {
+  const logo = logoUrl
+    ? `<img src="${logoUrl}" alt="Logo" width="72" style="display: inline-block; width: 72px; height: auto;" />`
+    : `<div style="display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 16px; background: #e0f2fe; color: #0369a1; font-weight: 800;">RN</div>`;
+
+  return (template || "{{body}}").replaceAll("{{logo}}", logo);
 }
 
 function EmailSidebar({ section, dirty }: { section: EmailAdminSection; dirty: boolean }) {
@@ -496,6 +504,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
                 <EndpointSection
                   endpoints={endpoints}
                   endpointsOriginal={endpointsOriginal}
+                  global={global}
                   savingEndpointKey={savingEndpointKey}
                   onAdd={addEndpoint}
                   onChange={updateEndpointDefinition}
@@ -593,6 +602,7 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
 function EndpointSection({
   endpoints,
   endpointsOriginal,
+  global,
   savingEndpointKey,
   onAdd,
   onChange,
@@ -601,6 +611,7 @@ function EndpointSection({
 }: {
   endpoints: EmailEndpointDTO[];
   endpointsOriginal: EmailEndpointDTO[];
+  global: EmailGlobalSettingsDTO;
   savingEndpointKey: string;
   onAdd: () => void;
   onChange: (index: number, input: Partial<EmailEndpointDTO>) => void;
@@ -608,19 +619,31 @@ function EndpointSection({
   onDelete: (endpoint: EmailEndpointDTO, index: number) => void;
 }) {
   const [expandedEndpoints, setExpandedEndpoints] = useState<Record<string, boolean>>({});
+  const [previewEndpoints, setPreviewEndpoints] = useState<Record<string, boolean>>({});
 
   function getEndpointRowKey(endpoint: EmailEndpointDTO, index: number) {
     return endpoint.id ?? `new-${index}`;
   }
 
   function toggleEndpoint(rowKey: string) {
-    setExpandedEndpoints((current) => ({ ...current, [rowKey]: !current[rowKey] }));
+    setExpandedEndpoints((current) => (current[rowKey] ? {} : { [rowKey]: true }));
+    setPreviewEndpoints({});
   }
 
   function insertBodyTag(index: number, endpoint: EmailEndpointDTO) {
     const current = endpoint.html_template || "";
     if (current.includes("{{body}}")) return;
     onChange(index, { html_template: `${current}${current.trim() ? "\n" : ""}{{body}}` });
+  }
+
+  function insertLogoTag(index: number, endpoint: EmailEndpointDTO) {
+    const current = endpoint.html_template || "";
+    if (current.includes("{{logo}}")) return;
+    onChange(index, { html_template: `${current}${current.trim() ? "\n" : ""}{{logo}}` });
+  }
+
+  function togglePreview(rowKey: string) {
+    setPreviewEndpoints((current) => ({ ...current, [rowKey]: !current[rowKey] }));
   }
 
   return (
@@ -641,7 +664,7 @@ function EndpointSection({
           const original = endpointsOriginal[index] ? normalizeEndpoint(endpointsOriginal[index]) : null;
           const endpointDirty = stable(normalized) !== stable(original);
           const rowKey = getEndpointRowKey(endpoint, index);
-          const expanded = !endpoint.id || expandedEndpoints[rowKey];
+          const expanded = Boolean(expandedEndpoints[rowKey]);
 
           return (
             <article key={rowKey} className="group rounded-lg border border-slate-800 bg-slate-950/45 transition hover:border-cyan-400/35 hover:bg-slate-900/65 hover:shadow-lg hover:shadow-cyan-950/10">
@@ -691,7 +714,7 @@ function EndpointSection({
                     <Field label="Nome">
                       <input className="field" value={endpoint.name} onChange={(event) => onChange(index, { name: event.target.value, key: endpoint.key || slugify(event.target.value) })} />
                     </Field>
-                    <Field label="Chave" description="Usada na URL da API.">
+                    <Field label="Chave">
                       <input className="field" value={endpoint.key} onChange={(event) => onChange(index, { key: slugify(event.target.value) })} />
                     </Field>
                     <Field label="Descrição">
@@ -701,21 +724,50 @@ function EndpointSection({
                       <input className="field" value={endpoint.default_subject ?? ""} onChange={(event) => onChange(index, { default_subject: event.target.value })} />
                     </Field>
                     <div className="md:col-span-2">
-                      <Field label="Corpo HTML" description="Use {{body}} no ponto em que o conteúdo enviado pela plataforma deve aparecer.">
+                      <Field label="Corpo HTML" description="Use {{body}} no ponto em que o conteúdo enviado pela plataforma deve aparecer. Use {{logo}} para mostrar a logo configurada da plataforma.">
                         <textarea
-                          className="field min-h-72 font-mono text-sm"
+                          className="field min-h-64 font-mono text-sm"
+                          rows={14}
                           value={endpoint.html_template ?? "{{body}}"}
                           onChange={(event) => onChange(index, { html_template: event.target.value })}
                         />
                       </Field>
-                      <button
-                        className="btn-secondary mt-2 min-h-9 px-3 py-2 text-xs"
-                        type="button"
-                        onClick={() => insertBodyTag(index, endpoint)}
-                        disabled={(endpoint.html_template ?? "").includes("{{body}}")}
-                      >
-                        Inserir {"{{body}}"}
-                      </button>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          className="btn-secondary min-h-9 px-3 py-2 text-xs"
+                          type="button"
+                          onClick={() => insertBodyTag(index, endpoint)}
+                          disabled={(endpoint.html_template ?? "").includes("{{body}}")}
+                        >
+                          {"{{body}}"}
+                        </button>
+                        <button
+                          className="btn-secondary min-h-9 px-3 py-2 text-xs"
+                          type="button"
+                          onClick={() => insertLogoTag(index, endpoint)}
+                          disabled={(endpoint.html_template ?? "").includes("{{logo}}")}
+                        >
+                          {"{{logo}}"}
+                        </button>
+                        <button
+                          className="btn-secondary min-h-9 px-3 py-2 text-xs"
+                          type="button"
+                          onClick={() => togglePreview(rowKey)}
+                        >
+                          <Eye size={14} aria-hidden="true" />
+                          {previewEndpoints[rowKey] ? "Ocultar preview" : "Ver preview"}
+                        </button>
+                      </div>
+                      {previewEndpoints[rowKey] ? (
+                        <div className="mt-4 overflow-hidden rounded-lg border border-slate-800 bg-white">
+                          <iframe
+                            title={`Preview de ${endpoint.name || "endpoint"}`}
+                            sandbox=""
+                            className="h-[520px] w-full bg-white"
+                            srcDoc={buildEndpointPreviewHtml(endpoint.html_template ?? "{{body}}", global.logo_url)}
+                          />
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>

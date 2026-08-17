@@ -376,6 +376,14 @@ export class EmailService {
     };
   }
 
+  private mapAttachments(input: SendInput["attachments"]) {
+    return input?.map((attachment) => ({
+      filename: attachment.filename,
+      content: Buffer.from(attachment.content_base64, "base64"),
+      contentType: attachment.content_type,
+    }));
+  }
+
   async sendFromApplication(request: Request, input: SendInput, endpoint: EmailEndpointKey = "send") {
     const { application, setting, endpoint: endpointRow } = await this.authenticateApplication(request, endpoint);
     this.ensureAllowedRecipients(setting, input.to);
@@ -397,8 +405,11 @@ export class EmailService {
         subject,
         htmlTemplate: endpointRow.html_template,
         bodyHtml: input.body,
+        logoUrl: template.logoUrl,
+        logoAlt: template.fromName,
         fromName: template.fromName,
         replyTo: template.replyTo,
+        attachments: this.mapAttachments(input.attachments),
       });
 
       await this.log({

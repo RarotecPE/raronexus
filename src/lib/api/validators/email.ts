@@ -75,10 +75,20 @@ const emailListSchema = z.union([
   z.array(z.email()).min(1).max(50),
 ]).transform((value) => (Array.isArray(value) ? value : [value]));
 
+const emailAttachmentSchema = z.object({
+  filename: z.string().trim().min(1).max(140),
+  content_type: z.literal("application/pdf"),
+  content_base64: z.string().trim().min(1),
+}).refine((attachment) => {
+  const size = Buffer.byteLength(attachment.content_base64, "base64");
+  return size > 0 && size <= 5 * 1024 * 1024;
+}, "O anexo deve ser um PDF de ate 5 MB.");
+
 export const sendEmailSchema = z.object({
   to: emailListSchema,
   subject: plainTextSchema(160).optional(),
   body: z.string().trim().min(1).max(20000),
+  attachments: z.array(emailAttachmentSchema).max(3).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 

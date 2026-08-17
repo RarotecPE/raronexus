@@ -25,6 +25,8 @@ export type TemplatedEmailInput = {
   subject: string;
   htmlTemplate: string;
   bodyHtml: string;
+  logoUrl?: string | null;
+  logoAlt?: string;
   fromName?: string;
   replyTo?: string | null;
   attachments?: Mail.Attachment[];
@@ -293,7 +295,12 @@ export async function sendStandardEmail(input: StandardEmailInput) {
 export async function sendTemplatedEmail(input: TemplatedEmailInput) {
   const fromEmail = requireEnv("SMTP_FROM_EMAIL");
   const fromName = input.fromName || process.env.SMTP_FROM_NAME?.trim() || "RaroNexus";
-  const html = input.htmlTemplate.replaceAll("{{body}}", sanitizeLimitedEmailHtml(input.bodyHtml));
+  const logoHtml = input.logoUrl
+    ? `<img src="${escapeHtml(input.logoUrl)}" alt="${escapeHtml(input.logoAlt || fromName)}" width="72" style="display: inline-block; width: 72px; height: auto;" />`
+    : "";
+  const html = input.htmlTemplate
+    .replaceAll("{{logo}}", logoHtml)
+    .replaceAll("{{body}}", sanitizeLimitedEmailHtml(input.bodyHtml));
 
   const info = await getTransporter().sendMail({
     from: `"${fromName}" <${fromEmail}>`,
