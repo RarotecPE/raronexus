@@ -21,7 +21,7 @@ function isMissingEmailTableError(error: unknown) {
 function throwEmailSchemaError(error: unknown): never {
   if (isMissingEmailTableError(error)) {
     throw new ApiException(
-      "Central de e-mails nao encontrada no banco. Aplique as migrations 20260814100000_email_center.sql e 20260814102000_dynamic_email_endpoints.sql no Supabase.",
+      "Central de e-mails não encontrada ou desatualizada no banco. Aplique as migrations 20260814100000_email_center.sql, 20260814102000_dynamic_email_endpoints.sql e 20260817120000_email_endpoint_html_templates.sql no Supabase.",
       "EMAIL_SCHEMA_NOT_FOUND",
       503,
     );

@@ -24,7 +24,7 @@ const actions = [
   {
     title: "E-mails",
     description: "Configure a central de envio das plataformas.",
-    href: "/admin/emails",
+    href: "/admin/emails/global",
     icon: Mail,
   },
 ];

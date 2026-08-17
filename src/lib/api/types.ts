@@ -251,6 +251,7 @@ export type EmailEndpointRow = {
   default_title: string | null;
   default_message: string | null;
   default_action_label: string | null;
+  html_template: string;
   created_at: string;
   updated_at: string;
 };
@@ -301,6 +302,7 @@ export type EmailEndpointDTO = {
   default_title?: string | null;
   default_message?: string | null;
   default_action_label?: string | null;
+  html_template: string;
 };
 
 export type EmailDeliveryLogDTO = {

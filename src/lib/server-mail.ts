@@ -20,6 +20,16 @@ export type StandardEmailInput = {
   attachments?: Mail.Attachment[];
 };
 
+export type TemplatedEmailInput = {
+  to: string | string[];
+  subject: string;
+  htmlTemplate: string;
+  bodyHtml: string;
+  fromName?: string;
+  replyTo?: string | null;
+  attachments?: Mail.Attachment[];
+};
+
 function requireEnv(name: string) {
   const value = process.env[name];
   if (!value) {
@@ -44,6 +54,136 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+const allowedHtmlTags = new Set([
+  "a",
+  "b",
+  "blockquote",
+  "br",
+  "div",
+  "em",
+  "h1",
+  "h2",
+  "h3",
+  "hr",
+  "i",
+  "img",
+  "li",
+  "ol",
+  "p",
+  "span",
+  "strong",
+  "table",
+  "tbody",
+  "td",
+  "th",
+  "thead",
+  "tr",
+  "u",
+  "ul",
+]);
+
+const allowedStyleProperties = new Set([
+  "background",
+  "background-color",
+  "border",
+  "border-radius",
+  "color",
+  "display",
+  "font-size",
+  "font-weight",
+  "height",
+  "line-height",
+  "margin",
+  "margin-bottom",
+  "margin-left",
+  "margin-right",
+  "margin-top",
+  "max-width",
+  "padding",
+  "padding-bottom",
+  "padding-left",
+  "padding-right",
+  "padding-top",
+  "text-align",
+  "text-decoration",
+  "width",
+]);
+
+function sanitizeStyle(value: string) {
+  return value
+    .split(";")
+    .map((declaration) => declaration.trim())
+    .filter(Boolean)
+    .map((declaration) => {
+      const separator = declaration.indexOf(":");
+      if (separator === -1) return "";
+      const property = declaration.slice(0, separator).trim().toLowerCase();
+      const propertyValue = declaration.slice(separator + 1).trim();
+      if (!allowedStyleProperties.has(property)) return "";
+      if (/expression|javascript\s*:|behavior\s*:|@import|url\s*\(/i.test(propertyValue)) return "";
+      return `${property}: ${propertyValue}`;
+    })
+    .filter(Boolean)
+    .join("; ");
+}
+
+function sanitizeAttributeValue(value: string) {
+  return escapeHtml(value.replace(/[\u0000-\u001f\u007f]/g, "").trim());
+}
+
+function sanitizeHtmlAttributes(tag: string, attributes: string) {
+  const safeAttributes: string[] = [];
+  const attributePattern = /([a-zA-Z0-9:-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+
+  for (const match of attributes.matchAll(attributePattern)) {
+    const name = match[1].toLowerCase();
+    const value = match[2] ?? match[3] ?? match[4] ?? "";
+    if (name.startsWith("on")) continue;
+
+    if (name === "style") {
+      const style = sanitizeStyle(value);
+      if (style) safeAttributes.push(`style="${sanitizeAttributeValue(style)}"`);
+      continue;
+    }
+
+    if (tag === "a" && name === "href") {
+      if (/^(https?:|mailto:)/i.test(value)) {
+        safeAttributes.push(`href="${sanitizeAttributeValue(value)}"`);
+        safeAttributes.push('target="_blank"');
+        safeAttributes.push('rel="noopener noreferrer"');
+      }
+      continue;
+    }
+
+    if (tag === "img" && ["src", "alt", "width", "height"].includes(name)) {
+      if (name === "src" && !/^https?:/i.test(value)) continue;
+      safeAttributes.push(`${name}="${sanitizeAttributeValue(value)}"`);
+      continue;
+    }
+
+    if (["colspan", "rowspan"].includes(name) && /^(?:[1-9]|1[0-2])$/.test(value)) {
+      safeAttributes.push(`${name}="${sanitizeAttributeValue(value)}"`);
+    }
+  }
+
+  return safeAttributes.length > 0 ? ` ${safeAttributes.join(" ")}` : "";
+}
+
+export function sanitizeLimitedEmailHtml(input: string) {
+  return input
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\s*(script|style|iframe|object|embed|form|input|button|meta|link|base|svg|math)[\s\S]*?<\s*\/\s*\1\s*>/gi, "")
+    .replace(/<\s*(script|style|iframe|object|embed|form|input|button|meta|link|base|svg|math)[^>]*\/?\s*>/gi, "")
+    .replace(/<\/?([a-zA-Z0-9]+)([^>]*)>/g, (full, rawTag: string, rawAttributes: string) => {
+      const closing = full.startsWith("</");
+      const tag = rawTag.toLowerCase();
+      if (!allowedHtmlTags.has(tag)) return "";
+      if (closing) return `</${tag}>`;
+      const selfClosing = /\/\s*>$/.test(full) || tag === "br" || tag === "hr" || tag === "img";
+      return `<${tag}${sanitizeHtmlAttributes(tag, rawAttributes)}${selfClosing && tag !== "br" && tag !== "hr" ? " /" : ""}>`;
+    });
 }
 
 function paragraphize(value: string) {
@@ -143,6 +283,23 @@ export async function sendStandardEmail(input: StandardEmailInput) {
     to: input.to,
     subject: input.subject,
     html: renderStandardEmail(input),
+    replyTo: input.replyTo || undefined,
+    attachments: input.attachments ?? [],
+  });
+
+  return { messageId: info.messageId };
+}
+
+export async function sendTemplatedEmail(input: TemplatedEmailInput) {
+  const fromEmail = requireEnv("SMTP_FROM_EMAIL");
+  const fromName = input.fromName || process.env.SMTP_FROM_NAME?.trim() || "RaroNexus";
+  const html = input.htmlTemplate.replaceAll("{{body}}", sanitizeLimitedEmailHtml(input.bodyHtml));
+
+  const info = await getTransporter().sendMail({
+    from: `"${fromName}" <${fromEmail}>`,
+    to: input.to,
+    subject: input.subject,
+    html,
     replyTo: input.replyTo || undefined,
     attachments: input.attachments ?? [],
   });

@@ -29,7 +29,7 @@ const navigationItems = [
   { label: "Início", href: "/home", icon: Home },
   { label: "Usuários", href: "/admin/users", icon: UsersRound },
   { label: "Plataformas", href: "/applications", icon: AppWindow },
-  { label: "E-mails", href: "/admin/emails", icon: Mail },
+  { label: "E-mails", href: "/admin/emails/global", icon: Mail },
 ];
 
 export function AppShell({

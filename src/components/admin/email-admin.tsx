@@ -59,9 +59,10 @@ function emptyEndpoint(): EmailEndpointDTO {
     description: "",
     active: true,
     default_subject: "",
-    default_title: "",
-    default_message: "",
-    default_action_label: "",
+    default_title: null,
+    default_message: null,
+    default_action_label: null,
+    html_template: "{{body}}",
   };
 }
 
@@ -71,9 +72,10 @@ function normalizeEndpoint(endpoint: EmailEndpointDTO): EmailEndpointDTO {
     key: slugify(endpoint.key || endpoint.name),
     description: endpoint.description ?? "",
     default_subject: endpoint.default_subject ?? "",
-    default_title: endpoint.default_title ?? "",
-    default_message: endpoint.default_message ?? "",
-    default_action_label: endpoint.default_action_label ?? "",
+    default_title: endpoint.default_title ?? null,
+    default_message: endpoint.default_message ?? null,
+    default_action_label: endpoint.default_action_label ?? null,
+    html_template: endpoint.html_template || "{{body}}",
   };
 }
 
@@ -310,6 +312,10 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
     const normalized = normalizeEndpoint(endpoint);
     if (!normalized.key) {
       setAlert({ type: "warning", message: "Informe a chave do endpoint." });
+      return;
+    }
+    if (!normalized.html_template.includes("{{body}}")) {
+      setAlert({ type: "warning", message: "O corpo HTML precisa conter a tag {{body}}." });
       return;
     }
 
@@ -601,6 +607,22 @@ function EndpointSection({
   onSave: (endpoint: EmailEndpointDTO, index: number) => Promise<void>;
   onDelete: (endpoint: EmailEndpointDTO, index: number) => void;
 }) {
+  const [expandedEndpoints, setExpandedEndpoints] = useState<Record<string, boolean>>({});
+
+  function getEndpointRowKey(endpoint: EmailEndpointDTO, index: number) {
+    return endpoint.id ?? `new-${index}`;
+  }
+
+  function toggleEndpoint(rowKey: string) {
+    setExpandedEndpoints((current) => ({ ...current, [rowKey]: !current[rowKey] }));
+  }
+
+  function insertBodyTag(index: number, endpoint: EmailEndpointDTO) {
+    const current = endpoint.html_template || "";
+    if (current.includes("{{body}}")) return;
+    onChange(index, { html_template: `${current}${current.trim() ? "\n" : ""}{{body}}` });
+  }
+
   return (
     <section className="panel p-5">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -618,61 +640,86 @@ function EndpointSection({
           const normalized = normalizeEndpoint(endpoint);
           const original = endpointsOriginal[index] ? normalizeEndpoint(endpointsOriginal[index]) : null;
           const endpointDirty = stable(normalized) !== stable(original);
-          const saveKey = endpoint.id ?? `new-${index}`;
-          const protectedEndpoint = endpoint.key === "send" || endpoint.key === "test";
+          const rowKey = getEndpointRowKey(endpoint, index);
+          const expanded = !endpoint.id || expandedEndpoints[rowKey];
 
           return (
-            <article key={`${endpoint.id ?? "new"}-${index}`} className="rounded-lg border border-slate-800 bg-slate-950/45 p-4">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-white">{endpoint.name || "Novo endpoint"}</p>
-                  <p className="text-xs text-cyan-300">/api/email/{normalized.key || "nova-chave"}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-200">
+            <article key={rowKey} className="group rounded-lg border border-slate-800 bg-slate-950/45 transition hover:border-cyan-400/35 hover:bg-slate-900/65 hover:shadow-lg hover:shadow-cyan-950/10">
+              <div
+                className="flex cursor-pointer flex-col gap-3 p-4 transition group-hover:bg-cyan-500/[0.03] sm:flex-row sm:items-center sm:justify-between"
+                onClick={() => toggleEndpoint(rowKey)}
+              >
+                <button
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-md text-left transition hover:text-cyan-100"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleEndpoint(rowKey);
+                  }}
+                  aria-expanded={expanded}
+                >
+                  <span className={`grid h-8 w-8 place-items-center rounded-lg border transition group-hover:border-cyan-400/45 group-hover:text-cyan-200 ${expanded ? "border-cyan-400/45 bg-cyan-400/10 text-cyan-200" : "border-slate-700 bg-slate-900/60 text-slate-400"}`}>
+                    <ChevronDown size={16} className={`transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-white transition group-hover:text-cyan-50">{endpoint.name || "Novo endpoint"}</span>
+                    <span className="block truncate text-xs text-cyan-300">/api/email/{normalized.key || "nova-chave"}</span>
+                  </span>
+                </button>
+                <div className="flex flex-wrap items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-200">
                     <input type="checkbox" checked={endpoint.active} onChange={(event) => onChange(index, { active: event.target.checked })} />
                     Ativo
                   </label>
-                  <button className="btn-primary min-h-9" type="button" disabled={!endpointDirty || savingEndpointKey === saveKey} onClick={() => void onSave(endpoint, index)}>
+                  <button className="btn-primary min-h-9" type="button" disabled={!endpointDirty || savingEndpointKey === rowKey} onClick={() => void onSave(endpoint, index)}>
                     <Save size={15} aria-hidden="true" />
                     {endpoint.id ? "Salvar endpoint" : "Criar endpoint"}
                   </button>
                   <button
                     className="btn-secondary min-h-9 px-2 py-2 text-slate-400 hover:border-rose-400/45 hover:text-rose-200 disabled:opacity-40"
                     type="button"
-                    title={protectedEndpoint ? "Endpoint protegido" : "Remover endpoint"}
-                    disabled={protectedEndpoint}
+                    title="Remover endpoint"
                     onClick={() => onDelete(endpoint, index)}
                   >
                     <Trash2 size={15} aria-hidden="true" />
                   </button>
                 </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Nome">
-                  <input className="field" value={endpoint.name} onChange={(event) => onChange(index, { name: event.target.value, key: endpoint.key || slugify(event.target.value) })} />
-                </Field>
-                <Field label="Chave" description="Usada na URL da API.">
-                  <input className="field" value={endpoint.key} onChange={(event) => onChange(index, { key: slugify(event.target.value) })} />
-                </Field>
-                <Field label="Descricao">
-                  <input className="field" value={endpoint.description ?? ""} onChange={(event) => onChange(index, { description: event.target.value })} />
-                </Field>
-                <Field label="Assunto padrao">
-                  <input className="field" value={endpoint.default_subject ?? ""} onChange={(event) => onChange(index, { default_subject: event.target.value })} />
-                </Field>
-                <Field label="Titulo padrao">
-                  <input className="field" value={endpoint.default_title ?? ""} onChange={(event) => onChange(index, { default_title: event.target.value })} />
-                </Field>
-                <Field label="Botao padrao">
-                  <input className="field" value={endpoint.default_action_label ?? ""} onChange={(event) => onChange(index, { default_action_label: event.target.value })} />
-                </Field>
-                <div className="md:col-span-2">
-                  <Field label="Mensagem padrao" description="Pode ficar vazia se a plataforma enviar a mensagem no payload.">
-                    <textarea className="field min-h-24" value={endpoint.default_message ?? ""} onChange={(event) => onChange(index, { default_message: event.target.value })} />
-                  </Field>
+              {expanded ? (
+                <div className="border-t border-slate-800 p-4 pt-5">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field label="Nome">
+                      <input className="field" value={endpoint.name} onChange={(event) => onChange(index, { name: event.target.value, key: endpoint.key || slugify(event.target.value) })} />
+                    </Field>
+                    <Field label="Chave" description="Usada na URL da API.">
+                      <input className="field" value={endpoint.key} onChange={(event) => onChange(index, { key: slugify(event.target.value) })} />
+                    </Field>
+                    <Field label="Descrição">
+                      <input className="field" value={endpoint.description ?? ""} onChange={(event) => onChange(index, { description: event.target.value })} />
+                    </Field>
+                    <Field label="Assunto">
+                      <input className="field" value={endpoint.default_subject ?? ""} onChange={(event) => onChange(index, { default_subject: event.target.value })} />
+                    </Field>
+                    <div className="md:col-span-2">
+                      <Field label="Corpo HTML" description="Use {{body}} no ponto em que o conteúdo enviado pela plataforma deve aparecer.">
+                        <textarea
+                          className="field min-h-72 font-mono text-sm"
+                          value={endpoint.html_template ?? "{{body}}"}
+                          onChange={(event) => onChange(index, { html_template: event.target.value })}
+                        />
+                      </Field>
+                      <button
+                        className="btn-secondary mt-2 min-h-9 px-3 py-2 text-xs"
+                        type="button"
+                        onClick={() => insertBodyTag(index, endpoint)}
+                        disabled={(endpoint.html_template ?? "").includes("{{body}}")}
+                      >
+                        Inserir {"{{body}}"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </article>
           );
         })}

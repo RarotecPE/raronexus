@@ -14,6 +14,16 @@ const plainTextSchema = (max: number) => z
   .max(max)
   .refine((value) => !/<[a-z][\s\S]*>/i.test(value), "HTML nao e aceito neste campo.");
 
+const htmlTemplateSchema = z
+  .string()
+  .trim()
+  .min(8)
+  .max(30000)
+  .refine((value) => value.includes("{{body}}"), "O corpo HTML precisa conter a tag {{body}}.")
+  .refine((value) => !/<\s*script[\s>]/i.test(value), "Scripts nao sao permitidos no template.")
+  .refine((value) => !/\son[a-z]+\s*=/i.test(value), "Eventos HTML nao sao permitidos no template.")
+  .refine((value) => !/javascript\s*:/i.test(value), "Links javascript nao sao permitidos no template.");
+
 export const emailEndpointSchema = z.string().trim().min(2).max(80).regex(/^[a-z0-9_.-]+$/);
 const optionalPlainTextSchema = (max: number) => z
   .string()
@@ -51,6 +61,7 @@ export const emailEndpointInputSchema = z.object({
   default_title: optionalPlainTextSchema(140),
   default_message: optionalPlainTextSchema(4000),
   default_action_label: optionalPlainTextSchema(60),
+  html_template: htmlTemplateSchema,
 });
 
 export const updateEmailAdminSettingsSchema = z.object({
@@ -67,10 +78,7 @@ const emailListSchema = z.union([
 export const sendEmailSchema = z.object({
   to: emailListSchema,
   subject: plainTextSchema(160).optional(),
-  title: plainTextSchema(140).optional(),
-  message: plainTextSchema(4000).optional(),
-  action_label: z.string().trim().max(60).refine((value) => !/<[a-z][\s\S]*>/i.test(value), "HTML nao e aceito neste campo.").optional(),
-  action_url: z.url().optional(),
+  body: z.string().trim().min(1).max(20000),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 

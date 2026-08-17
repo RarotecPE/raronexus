@@ -1,5 +1,5 @@
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
-import { sendStandardEmail } from "@/lib/server-mail";
+import { sendStandardEmail, sendTemplatedEmail } from "@/lib/server-mail";
 import { ApiException } from "../errors";
 import { ApplicationRepository } from "../repositories/application-repository";
 import { EmailRepository } from "../repositories/email-repository";
@@ -118,6 +118,7 @@ export class EmailService {
       default_title: endpoint.default_title,
       default_message: endpoint.default_message,
       default_action_label: endpoint.default_action_label,
+      html_template: endpoint.html_template || "{{body}}",
     };
   }
 
@@ -191,6 +192,7 @@ export class EmailService {
         default_title: this.normalizeOptional(endpoint.default_title),
         default_message: this.normalizeOptional(endpoint.default_message),
         default_action_label: this.normalizeOptional(endpoint.default_action_label),
+        html_template: endpoint.html_template || "{{body}}",
       });
     }
 
@@ -237,6 +239,7 @@ export class EmailService {
       default_title: this.normalizeOptional(input.default_title),
       default_message: this.normalizeOptional(input.default_message),
       default_action_label: this.normalizeOptional(input.default_action_label),
+      html_template: input.html_template || "{{body}}",
     };
   }
 
@@ -248,9 +251,6 @@ export class EmailService {
 
   async updateEndpoint(context: AuthenticatedContext, currentKey: EmailEndpointKey, input: EndpointInput) {
     this.requireAdmin(context);
-    if ((currentKey === "send" || currentKey === "test") && input.key !== currentKey) {
-      throw new ApiException("Endpoints internos da central nao podem ter a chave alterada.", "EMAIL_ENDPOINT_PROTECTED", 409);
-    }
 
     const existing = await this.emails.findEndpointByKey(currentKey);
     if (!existing) {
@@ -307,9 +307,6 @@ export class EmailService {
 
   async deleteEndpoint(context: AuthenticatedContext, key: string) {
     this.requireAdmin(context);
-    if (key === "send" || key === "test") {
-      throw new ApiException("Endpoints internos da central nao podem ser removidos.", "EMAIL_ENDPOINT_PROTECTED", 409);
-    }
 
     const endpoint = await this.emails.findEndpointByKey(key);
     if (!endpoint) {
@@ -386,28 +383,20 @@ export class EmailService {
     try {
       const template = await this.getTemplateSettings(application, setting);
       const subject = input.subject || endpointRow.default_subject;
-      const title = input.title || endpointRow.default_title;
-      const message = input.message || endpointRow.default_message;
 
-      if (!subject || !title || !message) {
+      if (!subject || !input.body || !endpointRow.html_template?.includes("{{body}}")) {
         throw new ApiException(
-          "Informe subject, title e message ou configure valores padrao para este endpoint.",
+          "Informe subject e body, e configure um corpo HTML com {{body}} para este endpoint.",
           "EMAIL_CONTENT_REQUIRED",
           422,
         );
       }
 
-      const result = await sendStandardEmail({
+      const result = await sendTemplatedEmail({
         to: input.to,
         subject,
-        title,
-        message,
-        actionLabel: input.action_label || endpointRow.default_action_label || undefined,
-        actionUrl: input.action_url,
-        logoUrl: template.logoUrl,
-        logoAlt: template.fromName,
-        primaryColor: template.primaryColor,
-        footerText: template.footerText,
+        htmlTemplate: endpointRow.html_template,
+        bodyHtml: input.body,
         fromName: template.fromName,
         replyTo: template.replyTo,
       });
