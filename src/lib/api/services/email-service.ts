@@ -394,6 +394,7 @@ export class EmailService {
         subject,
         htmlTemplate: endpointRow.html_template,
         bodyHtml: input.body,
+        primaryColor: template.primaryColor,
         logoUrl: template.logoUrl,
         logoAlt: template.fromName,
         fromName: template.fromName,

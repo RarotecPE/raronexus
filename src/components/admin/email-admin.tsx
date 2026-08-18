@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Eye, Globe2, ListChecks, Mail, Plus, RefreshCw, Save, ScrollText, Send, Server, ShieldCheck, Trash2, X } from "lucide-react";
+import { ChevronDown, Eye, Globe2, ListChecks, Mail, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Server, ShieldCheck, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ApplicationLogo } from "@/components/applications/application-logo";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
@@ -76,7 +76,7 @@ function normalizeApplication(application: ApplicationEmailSettingsDTO, endpoint
     ...application,
     display_name: application.display_name ?? "",
     logo_url: application.logo_url ?? "",
-    primary_color: application.primary_color ?? "",
+    primary_color: application.primary_color || null,
     footer_text: application.footer_text ?? "",
     reply_to_email: application.reply_to_email ?? "",
     allowed_recipient_domains: [],
@@ -98,12 +98,14 @@ function Field({ label, description, children }: { label: string; description?: 
   );
 }
 
-function buildEndpointPreviewHtml(template: string, logoUrl?: string | null) {
+function buildEndpointPreviewHtml(template: string, logoUrl?: string | null, primaryColor = "#0ea5e9") {
   const logo = logoUrl
     ? `<img src="${logoUrl}" alt="Logo" width="72" style="display: inline-block; width: 72px; height: auto;" />`
     : `<div style="display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 16px; background: #e0f2fe; color: #0369a1; font-weight: 800;">RN</div>`;
 
-  return (template || "{{body}}").replaceAll("{{logo}}", logo);
+  return (template || "{{body}}")
+    .replaceAll("{{logo}}", logo)
+    .replaceAll("{{primary_color}}", primaryColor);
 }
 
 function EmailSidebar({ section, dirty }: { section: EmailAdminSection; dirty: boolean }) {
@@ -634,6 +636,12 @@ function EndpointSection({
     onChange(index, { html_template: `${current}${current.trim() ? "\n" : ""}{{logo}}` });
   }
 
+  function insertPrimaryColorTag(index: number, endpoint: EmailEndpointDTO) {
+    const current = endpoint.html_template || "";
+    if (current.includes("{{primary_color}}")) return;
+    onChange(index, { html_template: `${current}${current.trim() ? "\n" : ""}{{primary_color}}` });
+  }
+
   function togglePreview(rowKey: string) {
     setPreviewEndpoints((current) => ({ ...current, [rowKey]: !current[rowKey] }));
   }
@@ -716,7 +724,7 @@ function EndpointSection({
                       <input className="field" value={endpoint.default_subject ?? ""} onChange={(event) => onChange(index, { default_subject: event.target.value })} />
                     </Field>
                     <div className="md:col-span-2">
-                      <Field label="Corpo HTML" description="Use {{body}} no ponto em que o conteúdo enviado pela plataforma deve aparecer. Use {{logo}} para mostrar a logo configurada da plataforma.">
+                      <Field label="Corpo HTML" description="Use {{body}} no ponto em que o conteúdo enviado pela plataforma deve aparecer. Use {{logo}} para mostrar a logo configurada da plataforma e {{primary_color}} para usar a cor principal.">
                         <textarea
                           className="field min-h-64 font-mono text-sm"
                           rows={14}
@@ -744,6 +752,14 @@ function EndpointSection({
                         <button
                           className="btn-secondary min-h-9 px-3 py-2 text-xs"
                           type="button"
+                          onClick={() => insertPrimaryColorTag(index, endpoint)}
+                          disabled={(endpoint.html_template ?? "").includes("{{primary_color}}")}
+                        >
+                          {"{{primary_color}}"}
+                        </button>
+                        <button
+                          className="btn-secondary min-h-9 px-3 py-2 text-xs"
+                          type="button"
                           onClick={() => togglePreview(rowKey)}
                         >
                           <Eye size={14} aria-hidden="true" />
@@ -756,7 +772,7 @@ function EndpointSection({
                             title={`Preview de ${endpoint.name || "endpoint"}`}
                             sandbox=""
                             className="h-[520px] w-full bg-white"
-                            srcDoc={buildEndpointPreviewHtml(endpoint.html_template ?? "{{body}}", global.logo_url)}
+                            srcDoc={buildEndpointPreviewHtml(endpoint.html_template ?? "{{body}}", global.logo_url, global.primary_color)}
                           />
                         </div>
                       ) : null}
@@ -866,7 +882,26 @@ function PlatformSection({
                 <input className="field" value={application.logo_url ?? ""} onChange={(event) => onApplicationChange(application.application_id, { logo_url: event.target.value })} />
               </Field>
               <Field label="Cor principal">
-                <input className="field h-11" type="color" value={application.primary_color || global.primary_color} onChange={(event) => onApplicationChange(application.application_id, { primary_color: event.target.value })} />
+                <div className="flex items-center gap-2">
+                  <input
+                    className="field h-11 flex-1"
+                    type="color"
+                    value={application.primary_color || global.primary_color}
+                    onChange={(event) => onApplicationChange(application.application_id, { primary_color: event.target.value })}
+                  />
+                  {application.primary_color ? (
+                    <button
+                      className="btn-secondary min-h-11 px-3 py-2 text-slate-400 hover:border-cyan-400/45 hover:text-cyan-100"
+                      type="button"
+                      title="Usar cor global"
+                      aria-label="Usar cor global"
+                      onClick={() => onApplicationChange(application.application_id, { primary_color: null })}
+                    >
+                      <RotateCcw size={16} aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
+                {!application.primary_color ? <p className="mt-2 text-xs text-slate-500">Usando cor global</p> : null}
               </Field>
               <Field label="Rodapé">
                 <textarea className="field min-h-24" value={application.footer_text ?? ""} onChange={(event) => onApplicationChange(application.application_id, { footer_text: event.target.value })} />

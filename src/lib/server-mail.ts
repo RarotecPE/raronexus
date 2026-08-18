@@ -25,6 +25,7 @@ export type TemplatedEmailInput = {
   subject: string;
   htmlTemplate: string;
   bodyHtml: string;
+  primaryColor?: string | null;
   logoUrl?: string | null;
   logoAlt?: string;
   fromName?: string;
@@ -295,12 +296,14 @@ export async function sendStandardEmail(input: StandardEmailInput) {
 export async function sendTemplatedEmail(input: TemplatedEmailInput) {
   const fromEmail = requireEnv("SMTP_FROM_EMAIL");
   const fromName = input.fromName || process.env.SMTP_FROM_NAME?.trim() || "RaroNexus";
+  const primaryColor = input.primaryColor || "#0ea5e9";
   const logoHtml = input.logoUrl
     ? `<img src="${escapeHtml(input.logoUrl)}" alt="${escapeHtml(input.logoAlt || fromName)}" width="72" style="display: inline-block; width: 72px; height: auto;" />`
     : "";
   const html = input.htmlTemplate
     .replaceAll("{{logo}}", logoHtml)
-    .replaceAll("{{body}}", sanitizeLimitedEmailHtml(input.bodyHtml));
+    .replaceAll("{{body}}", sanitizeLimitedEmailHtml(input.bodyHtml))
+    .replaceAll("{{primary_color}}", escapeHtml(primaryColor));
 
   const info = await getTransporter().sendMail({
     from: `"${fromName}" <${fromEmail}>`,
