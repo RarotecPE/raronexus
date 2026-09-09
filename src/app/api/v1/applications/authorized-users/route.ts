@@ -13,6 +13,7 @@ type AuthorizedUserRow = {
     ativo: boolean;
   } | null;
   application_roles: {
+    nome: string;
     chave: string;
     ativo: boolean;
   } | null;
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabase
       .from("user_applications")
-      .select("users(id, nome, email, avatar_url, ativo), application_roles(chave, ativo)")
+      .select("users(id, nome, email, avatar_url, ativo), application_roles(nome, chave, ativo)")
       .eq("application_id", application.id)
       .eq("ativo", true)
       .returns<AuthorizedUserRow[]>();
@@ -62,6 +63,8 @@ export async function POST(request: Request) {
         nome: row.users!.nome ?? row.users!.email,
         email: row.users!.email,
         avatar_url: row.users!.avatar_url,
+        role_nome: row.application_roles!.nome,
+        role_chave: row.application_roles!.chave,
       }))
       .sort((left, right) => left.nome.localeCompare(right.nome));
 
