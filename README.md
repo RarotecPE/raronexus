@@ -1,96 +1,71 @@
-# RaroNexus
+# RaroNexus — Identity Provider & Central de Serviços Rarotec
 
-Identity Provider corporativo baseado em Next.js, TypeScript, Tailwind CSS e Supabase.
+O **RaroNexus** é o Identity Provider (IdP) corporativo da **Rarotec**. É responsável por centralizar a autenticação, controle de sessões globais (SSO), permissões de acesso, catálogo de aplicações e envio transacional de e-mails para todo o ecossistema da empresa.
 
-## Recursos
+O sistema atua como o ponto focal de identidade, autorização e integração para sistemas satélites.
 
-- Login com Supabase Auth, JWT e refresh token.
-- Recuperacao e redefinicao de senha pelo fluxo padrao do Supabase.
-- Perfil do usuario autenticado.
-- Administracao de usuarios por convite, criando `auth.users` e `public.users` apenas ao concluir o cadastro.
-- API REST versionada em `/api/v1` com DTOs e resposta padronizada.
-- Swagger em `/swagger`.
-- Migrations SQL com RLS para usuarios, aplicacoes, relacao usuario-aplicacao e auditoria.
-- Interface responsiva em modo escuro azul.
+---
 
-## Setup
+## 🚀 Principais Módulos
 
-1. Copie `.env.example` para `.env.local`.
-2. Preencha:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `NEXT_PUBLIC_APP_URL`
-   - `SMTP_HOST`
-   - `SMTP_PORT`
-   - `SMTP_USER`
-   - `SMTP_PASSWORD`
-   - `SMTP_FROM_EMAIL`
-   - `SMTP_FROM_NAME`
-   - `NEXT_PUBLIC_ENVIRONMENT_LABEL` opcional, por exemplo `HOMOLOGAÇÃO`, para exibir um aviso global em ambientes nao produtivos.
-3. Aplique a migration em `supabase/migrations/20260724165000_raronexus_identity.sql` no projeto Supabase.
-4. Crie pelo menos um usuario inicial no Supabase Auth e um registro correspondente em `public.users` com `is_admin = true`.
+- **Autenticação Centralizada & SSO**: Emissão e validação de `global_session_token`, login único com suporte a popup interativo e verificação silenciosa via `iframe`, além de fluxos de recuperação e redefinição de senhas.
+- **Administração de Usuários & Convites**: Gestão de colaboradores com onboarding seguro por convite, criando `auth.users` e `public.users` apenas após a conclusão do cadastro com validação de CPF único.
+- **Catálogo de Aplicações & Permissões**: Cadastro de sistemas clientes (`applications`), definição de papéis e cargos por aplicativo (`application_roles`) e controle de acesso individual (`user_applications`).
+- **Perfil do Usuário**: Gestão centralizada de dados cadastrais, cargo, foto/avatar e alteração de credenciais.
+- **Hub Transacional de E-mails**: Serviço centralizado de disparo de e-mails com templates HTML dinâmicos para atendimento às aplicações satélites do ecossistema.
+- **API REST & Documentação Swagger**: Endpoints RESTful versionados em `/api/v1` com DTOs tipados, validação Zod e documentação interativa OpenAPI/Swagger disponível em `/swagger`.
 
-No Supabase Auth, configure o `Site URL` com a URL publica do Nexus e adicione estas URLs em `Redirect URLs`:
+---
 
-- `https://raronexus.vercel.app/set-password`
-- `https://raronexus.vercel.app/reset-password`
+## 🛠️ Stack Tecnológica
 
-## Desenvolvimento
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router)
+- **Biblioteca UI**: [React 19](https://react.dev/)
+- **Estilização**: Tailwind CSS v4, Lucide Icons
+- **Linguagem**: TypeScript 5
+- **Autenticação & Banco de Dados**: Supabase Auth + PostgreSQL com Row Level Security (RLS)
+- **Validação de Dados**: Zod
+- **Documentação de API**: Swagger UI React (`/swagger`)
+- **E-mails**: Nodemailer + SMTP corporativo
 
+---
+
+## 💻 Instalação e Execução
+
+### Pré-requisitos
+- Node.js 20+ ou 22 LTS
+- Gerenciador de pacotes `npm`
+- Projeto configurado no Supabase com migrations aplicadas (`supabase/migrations/`)
+
+### 1. Instalar Dependências
+```bash
+npm install
+```
+
+### 2. Executar em Desenvolvimento
 ```bash
 npm run dev
 ```
+> O servidor será iniciado automaticamente na porta `3001` (`http://localhost:3001`).
 
-Rotas principais:
-
-- `/login`
-- `/forgot-password`
-- `/reset-password`
-- `/profile`
-- `/admin/users`
-- `/swagger`
-
-## Qualidade
-
+### 3. Verificar Tipagem e Qualidade
 ```bash
-npm run lint
 npm run typecheck
+npm run lint
 npm run test
-npm run build
 ```
 
-## Getting Started
-
-First, run the development server:
-
+### 4. Build de Produção
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
+npm run start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🔐 Papel no Ecossistema e Fluxo SSO
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. O **RaroNexus** é a autoridade central de identidade da Rarotec; nenhuma aplicação satélite gerencia credenciais de senha diretamente.
+2. Aplicações clientes registram suas credenciais (`client_id` e `client_secret`) e URLs de callback autorizadas no Nexus.
+3. Ao logar em qualquer sistema satélite, a sessão é conferida pelo endpoint `/api/v1/sessions/introspect`.
+4. Usuários autorizados para cada aplicação são sincronizados em lote via `/api/v1/applications/authorized-users`.
