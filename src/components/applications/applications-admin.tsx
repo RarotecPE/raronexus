@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   Upload,
   UsersRound,
-  X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ApplicationLogo } from "@/components/applications/application-logo";
@@ -148,6 +147,7 @@ function Modal({
   description,
   icon,
   children,
+  footer,
   onClose,
   maxWidth = "max-w-3xl",
 }: {
@@ -155,13 +155,25 @@ function Modal({
   description?: string;
   icon: ReactNode;
   children: ReactNode;
+  footer?: ReactNode;
   onClose: () => void;
   maxWidth?: string;
 }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm">
-      <section className={`panel max-h-[90vh] w-full ${maxWidth} overflow-y-auto p-5 shadow-2xl shadow-cyan-950/40`}>
-        <div className="mb-5 flex items-start justify-between gap-4">
+      <section className={`panel flex max-h-[90vh] w-full ${maxWidth} flex-col overflow-hidden p-0 shadow-2xl shadow-cyan-950/40`}>
+        <div className="flex shrink-0 items-start gap-4 border-b border-slate-700/70 p-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/15 text-cyan-200">
               {icon}
@@ -171,11 +183,15 @@ function Modal({
               {description ? <p className="text-sm text-slate-400">{description}</p> : null}
             </div>
           </div>
-          <button className="btn-secondary min-h-9 px-3 py-2" type="button" onClick={onClose} title="Fechar">
-            <X size={16} aria-hidden="true" />
-          </button>
         </div>
-        {children}
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {children}
+        </div>
+        {footer ? (
+          <footer className="shrink-0 border-t border-slate-700/70 bg-slate-950/95 p-5">
+            <div className="flex flex-wrap gap-2">{footer}</div>
+          </footer>
+        ) : null}
       </section>
     </div>
   );
@@ -682,8 +698,19 @@ export function ApplicationsAdmin() {
           description="Identidade, URLs permitidas e status da plataforma."
           icon={activeApplication ? <Save size={19} aria-hidden="true" /> : <Plus size={19} aria-hidden="true" />}
           onClose={closeModal}
+          footer={(
+            <>
+              <button className="btn-primary" disabled={saving} type="submit" form="application-edit-form">
+                <Save size={17} aria-hidden="true" />
+                {saving ? "Salvando..." : activeApplication ? "Salvar" : "Cadastrar"}
+              </button>
+              <button className="btn-secondary" type="button" onClick={closeModal}>
+                Cancelar
+              </button>
+            </>
+          )}
         >
-          <form onSubmit={saveApplication} className="space-y-4">
+          <form id="application-edit-form" onSubmit={saveApplication} className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <FieldGroup label="Nome">
                 <input className="field" placeholder="Nome da plataforma" value={applicationDraft.nome} onChange={(event) => updateDraftName(event.target.value)} required />
@@ -743,15 +770,7 @@ export function ApplicationsAdmin() {
               </div>
             ) : null}
 
-            <div className="flex flex-wrap gap-2 pt-2">
-              <button className="btn-primary" disabled={saving} type="submit">
-                <Save size={17} aria-hidden="true" />
-                {saving ? "Salvando..." : activeApplication ? "Salvar" : "Cadastrar"}
-              </button>
-              <button className="btn-secondary" type="button" onClick={closeModal}>
-                Cancelar
-              </button>
-            </div>
+
           </form>
         </Modal>
       ) : null}
@@ -762,8 +781,19 @@ export function ApplicationsAdmin() {
           description={`Configure os perfis da plataforma ${activeApplication.nome}.`}
           icon={<ApplicationLogo name={activeApplication.nome} logoUrl={activeApplication.logo_url} size="sm" />}
           onClose={closeModal}
+          footer={(
+            <>
+              <button className="btn-primary" disabled={saving} type="submit" form="application-profiles-form">
+                <Save size={17} aria-hidden="true" />
+                {saving ? "Salvando..." : "Salvar perfis"}
+              </button>
+              <button className="btn-secondary" type="button" onClick={closeModal}>
+                Cancelar
+              </button>
+            </>
+          )}
         >
-          <form onSubmit={saveProfiles} className="space-y-4">
+          <form id="application-profiles-form" onSubmit={saveProfiles} className="space-y-4">
             <div className="flex justify-end">
               <button className="btn-secondary min-h-9 px-3 py-1.5" type="button" onClick={addProfile}>
                 <Plus size={15} aria-hidden="true" />
@@ -799,15 +829,7 @@ export function ApplicationsAdmin() {
                 ))}
               </div>
             )}
-            <div className="flex flex-wrap gap-2 pt-2">
-              <button className="btn-primary" disabled={saving} type="submit">
-                <Save size={17} aria-hidden="true" />
-                {saving ? "Salvando..." : "Salvar perfis"}
-              </button>
-              <button className="btn-secondary" type="button" onClick={closeModal}>
-                Cancelar
-              </button>
-            </div>
+
           </form>
         </Modal>
       ) : null}
@@ -817,8 +839,19 @@ export function ApplicationsAdmin() {
           title="Usuarios"
           description={`Atribua perfis de usuarios para ${activeApplication.nome}.`}
           icon={<ApplicationLogo name={activeApplication.nome} logoUrl={activeApplication.logo_url} size="sm" />}
-          onClose={closeModal}
           maxWidth="max-w-5xl"
+          onClose={closeModal}
+          footer={(
+            <>
+              <button className="btn-primary" disabled={saving || loadingAssignments} type="button" onClick={saveAssignments}>
+                <Save size={17} aria-hidden="true" />
+                {saving ? "Salvando..." : "Salvar acessos"}
+              </button>
+              <button className="btn-secondary" type="button" onClick={closeModal}>
+                Cancelar
+              </button>
+            </>
+          )}
         >
           <div className="space-y-4">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
@@ -888,15 +921,7 @@ export function ApplicationsAdmin() {
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2 pt-2">
-              <button className="btn-primary" disabled={saving || loadingAssignments} type="button" onClick={saveAssignments}>
-                <Save size={17} aria-hidden="true" />
-                {saving ? "Salvando..." : "Salvar acessos"}
-              </button>
-              <button className="btn-secondary" type="button" onClick={closeModal}>
-                Cancelar
-              </button>
-            </div>
+
           </div>
         </Modal>
       ) : null}
