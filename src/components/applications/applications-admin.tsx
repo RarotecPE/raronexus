@@ -853,8 +853,9 @@ export function ApplicationsAdmin() {
             </>
           )}
         >
-          <div className="space-y-4">
-            <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
+          <div className="flex h-full min-h-0 flex-col gap-4">
+            <div className="shrink-0 space-y-4">
+              <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
               <FieldGroup label="Filtro">
                 <input className="field" placeholder="Nome ou e-mail do usuário" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} />
               </FieldGroup>
@@ -880,11 +881,12 @@ export function ApplicationsAdmin() {
               />
               Selecionar todos
             </label>
+            </div>
 
             {loadingAssignments ? (
-              <p className="text-sm text-slate-300">Carregando usuarios...</p>
+              <p className="shrink-0 text-sm text-slate-300">Carregando usuarios...</p>
             ) : (
-              <div className="max-h-[560px] overflow-y-auto rounded-lg border border-slate-700">
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-slate-700">
                 {filteredAssignments.map((assignment) => (
                   <div key={assignment.user_id} className="grid gap-3 border-b border-slate-700 bg-slate-950/45 p-3 last:border-b-0 md:grid-cols-[auto_1fr_260px] md:items-center">
                     <input

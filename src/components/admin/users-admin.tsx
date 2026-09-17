@@ -824,38 +824,40 @@ export function UsersAdmin() {
             </>
           )}
         >
-          <div className="space-y-4">
-            <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
-              <FieldGroup label="Filtro">
-                <input className="field" placeholder="Nome da plataforma" value={platformSearch} onChange={(event) => setPlatformSearch(event.target.value)} />
-              </FieldGroup>
-              <FieldGroup label="Perfil" description="Aplicado as selecionadas.">
-                <select className="field min-w-56" value={bulkProfileKey} onChange={(event) => setBulkProfileKey(event.target.value)}>
-                  <option value="nao_autorizado">Nao autorizado</option>
-                  {bulkProfileOptions.map((profile) => (
-                    <option key={profile.chave} value={profile.chave}>{profile.nome}</option>
-                  ))}
-                </select>
-              </FieldGroup>
-              <button className="btn-secondary" type="button" onClick={applyBulkProfile} disabled={selectedPlatforms.size === 0}>
-                Aplicar aos selecionados
-              </button>
+          <div className="flex h-full min-h-0 flex-col gap-4">
+            <div className="shrink-0 space-y-4">
+              <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
+                <FieldGroup label="Filtro">
+                  <input className="field" placeholder="Nome da plataforma" value={platformSearch} onChange={(event) => setPlatformSearch(event.target.value)} />
+                </FieldGroup>
+                <FieldGroup label="Perfil" description="Aplicado as selecionadas.">
+                  <select className="field min-w-56" value={bulkProfileKey} onChange={(event) => setBulkProfileKey(event.target.value)}>
+                    <option value="nao_autorizado">Nao autorizado</option>
+                    {bulkProfileOptions.map((profile) => (
+                      <option key={profile.chave} value={profile.chave}>{profile.nome}</option>
+                    ))}
+                  </select>
+                </FieldGroup>
+                <button className="btn-secondary" type="button" onClick={applyBulkProfile} disabled={selectedPlatforms.size === 0}>
+                  Aplicar aos selecionados
+                </button>
+              </div>
+
+              <label className="flex w-fit items-center gap-2 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={allFilteredPlatformsSelected}
+                  onChange={(event) => toggleFilteredPlatformSelection(filteredPlatformIds, event.target.checked)}
+                  disabled={filteredPlatformIds.length === 0}
+                />
+                Selecionar todos
+              </label>
             </div>
 
-            <label className="flex w-fit items-center gap-2 text-sm text-slate-200">
-              <input
-                type="checkbox"
-                checked={allFilteredPlatformsSelected}
-                onChange={(event) => toggleFilteredPlatformSelection(filteredPlatformIds, event.target.checked)}
-                disabled={filteredPlatformIds.length === 0}
-              />
-              Selecionar todos
-            </label>
-
             {loadingPlatforms ? (
-              <p className="text-sm text-slate-300">Carregando plataformas...</p>
+              <p className="shrink-0 text-sm text-slate-300">Carregando plataformas...</p>
             ) : (
-              <div className="max-h-[560px] overflow-y-auto rounded-lg border border-slate-700">
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-slate-700">
                 {filteredPlatforms.map((platform) => (
                   <div key={platform.application_id} className="grid gap-3 border-b border-slate-700 bg-slate-950/45 p-3 last:border-b-0 md:grid-cols-[auto_1fr_260px] md:items-center">
                     <input
