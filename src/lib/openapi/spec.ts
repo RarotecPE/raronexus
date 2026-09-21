@@ -46,6 +46,46 @@ export const openApiSpec = {
     },
   },
   paths: {
+    "/constants/{name}": {
+      get: {
+        summary: "Obter uma constante JSON",
+        description: "Resolve o nome para a versão atual e devolve o JSON bruto. Constantes privadas exigem um token global do RaroNexus.",
+        tags: ["Constants"],
+        servers: [{ url: "/api" }],
+        parameters: [
+          {
+            name: "name",
+            in: "path",
+            required: true,
+            schema: { type: "string", pattern: "^[a-z0-9][a-z0-9_.-]{1,79}$" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Conteúdo JSON da constante",
+            content: {
+              "application/json": {
+                schema: {
+                  description: "Qualquer raiz JSON válida.",
+                  oneOf: [
+                    { type: "object", additionalProperties: true },
+                    { type: "array", items: {} },
+                    { type: "string" },
+                    { type: "number" },
+                    { type: "boolean" },
+                  ],
+                  nullable: true,
+                },
+              },
+            },
+          },
+          "401": { description: "Sessão global necessária para uma constante privada" },
+          "404": { description: "Constante não encontrada" },
+          "410": { description: "Versão expirada" },
+          "429": { description: "Limite de requisições excedido" },
+        },
+      },
+    },
     "/email/send": {
       post: {
         summary: "Enviar e-mail padronizado por aplicacao",

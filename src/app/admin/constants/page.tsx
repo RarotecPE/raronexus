@@ -1,5 +1,5 @@
-import { AppShell } from "@/components/layout/app-shell";
+import { ConstantsAdmin } from "@/components/admin/constants-admin";
 
 export default function AdminConstantsPage() {
-  return <AppShell title="Constantes">{null}</AppShell>;
+  return <ConstantsAdmin />;
 }
