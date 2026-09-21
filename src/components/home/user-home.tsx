@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { AppWindow, CheckCircle2, Mail, UsersRound } from "lucide-react";
+import { AppWindow, Braces, CheckCircle2, Mail, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -26,6 +26,12 @@ const actions = [
     description: "Configure a central de envio das plataformas.",
     href: "/admin/emails/global",
     icon: Mail,
+  },
+  {
+    title: "Constantes",
+    description: "Acesse a central de constantes das APIs.",
+    href: "/admin/constants",
+    icon: Braces,
   },
 ];
 
@@ -94,7 +100,7 @@ export function UserHome() {
             </div>
           </section>
 
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {actions.map((action) => (
               <Link
                 key={action.href}
