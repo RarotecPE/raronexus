@@ -6,6 +6,7 @@ import {
   Braces,
   ChevronDown,
   ExternalLink,
+  Code2,
   Grid2X2,
   Home,
   LogOut,
@@ -202,7 +203,7 @@ export function AppShell({
                 aria-haspopup="menu"
                 onClick={() => setApiMenuOpen((open) => !open)}
               >
-                <Braces size={16} aria-hidden="true" />
+                <Code2 size={16} aria-hidden="true" />
                 APIs
                 <ChevronDown
                   size={14}
@@ -412,7 +413,7 @@ export function AppShell({
                 aria-haspopup="menu"
                 onClick={() => setApiMenuOpen((open) => !open)}
               >
-                <Braces size={18} aria-hidden="true" />
+                <Code2 size={18} aria-hidden="true" />
                 <span>APIs</span>
               </button>
             </div>
