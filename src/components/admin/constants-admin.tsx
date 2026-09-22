@@ -465,7 +465,7 @@ export function ConstantsAdmin() {
           onDrop={handleDrop}
         >
           {isDragging ? (
-            <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-cyan-400 bg-slate-950/85 backdrop-blur-sm transition-all">
+            <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-cyan-400 bg-slate-950/85 backdrop-blur-sm transition-all">
               <div className="flex flex-col items-center gap-3 p-6 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/10">
                   <Upload size={32} className="animate-bounce" aria-hidden="true" />

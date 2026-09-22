@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   AppWindow,
+  BookOpen,
   Braces,
   ChevronDown,
   ExternalLink,
@@ -36,6 +37,7 @@ const navigationItems = [
 const apiNavigationItems = [
   { label: "E-mails", href: "/admin/emails/global", icon: Mail },
   { label: "Constantes", href: "/admin/constants", icon: Braces },
+  { label: "Documentação", href: "/swagger", icon: BookOpen },
 ];
 
 export function AppShell({
@@ -170,7 +172,7 @@ export function AppShell({
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#0f3b68_0,#020617_36%,#020617_100%)] text-slate-100">
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-5">
-        <header className="relative mb-6 grid grid-cols-[auto_1fr] items-center gap-4 border-b border-cyan-400/15 pb-5 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <header className="relative z-30 mb-6 grid grid-cols-[auto_1fr] items-center gap-4 border-b border-cyan-400/15 pb-5 lg:grid-cols-[minmax(0,1fr)_auto]">
           <Link href="/home" className="flex min-w-0 items-center gap-3">
             <BrandMark />
             <span className="hidden text-base font-semibold text-slate-200 sm:block">
@@ -178,7 +180,7 @@ export function AppShell({
             </span>
           </Link>
 
-          <nav className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 flex-wrap justify-center gap-2 lg:flex">
+          <nav className="absolute left-1/2 top-1/2 z-30 hidden -translate-x-1/2 -translate-y-1/2 flex-wrap justify-center gap-2 lg:flex">
             {visibleNavigationItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -214,7 +216,7 @@ export function AppShell({
 
               {apiMenuOpen ? (
                 <div
-                  className="absolute left-1/2 z-40 mt-2 w-52 -translate-x-1/2 overflow-hidden rounded-lg border border-slate-700 bg-slate-950/95 p-2 shadow-2xl shadow-slate-950/70"
+                  className="absolute left-1/2 z-50 mt-2 w-52 -translate-x-1/2 overflow-hidden rounded-lg border border-slate-700 bg-slate-950 p-2 shadow-2xl shadow-slate-950/90 backdrop-blur-md"
                   role="menu"
                 >
                   {apiNavigationItems.map((item) => {
@@ -239,7 +241,7 @@ export function AppShell({
             </div>
           </nav>
 
-          <div ref={menuRef} className="relative col-start-2 row-start-1 flex justify-end gap-2 lg:col-start-2 lg:row-start-auto">
+          <div ref={menuRef} className="relative z-30 col-start-2 row-start-1 flex justify-end gap-2 lg:col-start-2 lg:row-start-auto">
             <ThemeToggleButton className="px-3" />
 
             <div className="relative">
@@ -261,7 +263,7 @@ export function AppShell({
               </button>
 
               {openMenu === "applications" ? (
-                <div className="absolute right-0 z-30 mt-2 w-72 overflow-hidden rounded-lg border border-slate-700 bg-slate-950/95 shadow-2xl shadow-slate-950/70">
+                <div className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-lg border border-slate-700 bg-slate-950 p-2 shadow-2xl shadow-slate-950/90 backdrop-blur-md">
                   <div className="border-b border-slate-800 px-4 py-3">
                     <p className="text-sm font-semibold text-white">Aplicativos</p>
                     <p className="text-xs text-slate-400">Sistemas liberados para sua conta</p>
@@ -309,7 +311,7 @@ export function AppShell({
               </button>
 
               {openMenu === "account" ? (
-                <div className="absolute right-0 z-30 mt-2 w-72 overflow-hidden rounded-lg border border-slate-700 bg-slate-950/95 shadow-2xl shadow-slate-950/70">
+                <div className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-lg border border-slate-700 bg-slate-950 p-2 shadow-2xl shadow-slate-950/90 backdrop-blur-md">
                   <div className="border-b border-slate-800 px-4 py-4">
                     <div className="flex items-center gap-3">
                       <UserAvatar src={user?.avatar_url} name={displayName} size="md" />
