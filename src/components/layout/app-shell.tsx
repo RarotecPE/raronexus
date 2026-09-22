@@ -3,8 +3,10 @@
 import Link from "next/link";
 import {
   AppWindow,
+  Braces,
   ChevronDown,
   ExternalLink,
+  Code2,
   Grid2X2,
   Home,
   LogOut,
@@ -29,7 +31,11 @@ const navigationItems = [
   { label: "Início", href: "/home", icon: Home },
   { label: "Usuários", href: "/admin/users", icon: UsersRound },
   { label: "Plataformas", href: "/applications", icon: AppWindow },
+];
+
+const apiNavigationItems = [
   { label: "E-mails", href: "/admin/emails/global", icon: Mail },
+  { label: "Constantes", href: "/admin/constants", icon: Braces },
 ];
 
 export function AppShell({
@@ -42,10 +48,13 @@ export function AppShell({
   const router = useRouter();
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const apiMenuRef = useRef<HTMLDivElement | null>(null);
+  const mobileApiMenuRef = useRef<HTMLDivElement | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState<UserResponseDTO | null>(null);
   const [applications, setApplications] = useState<ApplicationResponseDTO[]>([]);
   const [openMenu, setOpenMenu] = useState<HeaderMenu>(null);
+  const [apiMenuOpen, setApiMenuOpen] = useState(false);
   const [appsLoading, setAppsLoading] = useState(false);
   const [appsError, setAppsError] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
@@ -122,6 +131,28 @@ export function AppShell({
     };
   }, [openMenu]);
 
+  useEffect(() => {
+    if (!apiMenuOpen) return undefined;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (apiMenuRef.current?.contains(target) || mobileApiMenuRef.current?.contains(target)) return;
+      setApiMenuOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setApiMenuOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [apiMenuOpen]);
+
   async function signOut() {
     const supabase = createBrowserSupabaseClient();
     await fetch("/api/v1/auth/logout", { method: "POST" }).catch(() => null);
@@ -130,6 +161,9 @@ export function AppShell({
   }
 
   const visibleNavigationItems = navigationItems;
+  const apiNavigationActive = apiNavigationItems.some(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
   const displayName = user?.nome || user?.email || "Usuário";
   const roleLabel = isAdmin ? "Administrador" : "Usuário";
 
@@ -160,6 +194,49 @@ export function AppShell({
                 </Link>
               );
             })}
+
+            <div ref={apiMenuRef} className="relative">
+              <button
+                className={`btn-secondary ${apiNavigationActive || apiMenuOpen ? "border-cyan-300/60 bg-cyan-500/15 text-cyan-100" : ""}`}
+                type="button"
+                aria-expanded={apiMenuOpen}
+                aria-haspopup="menu"
+                onClick={() => setApiMenuOpen((open) => !open)}
+              >
+                <Code2 size={16} aria-hidden="true" />
+                APIs
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${apiMenuOpen ? "rotate-180" : ""}`}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {apiMenuOpen ? (
+                <div
+                  className="absolute left-1/2 z-40 mt-2 w-52 -translate-x-1/2 overflow-hidden rounded-lg border border-slate-700 bg-slate-950/95 p-2 shadow-2xl shadow-slate-950/70"
+                  role="menu"
+                >
+                  {apiNavigationItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+                    return (
+                      <Link
+                        key={item.href}
+                        className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition hover:bg-slate-900/80 hover:text-cyan-100 ${active ? "bg-cyan-500/15 text-cyan-100" : "text-slate-200"}`}
+                        href={item.href}
+                        role="menuitem"
+                        onClick={() => setApiMenuOpen(false)}
+                      >
+                        <Icon size={16} aria-hidden="true" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           </nav>
 
           <div ref={menuRef} className="relative col-start-2 row-start-1 flex justify-end gap-2 lg:col-start-2 lg:row-start-auto">
@@ -277,7 +354,7 @@ export function AppShell({
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-cyan-400/15 bg-slate-950/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-2xl shadow-slate-950/80 backdrop-blur lg:hidden">
           <div
             className="mx-auto grid max-w-md gap-1"
-            style={{ gridTemplateColumns: `repeat(${visibleNavigationItems.length}, minmax(0, 1fr))` }}
+            style={{ gridTemplateColumns: `repeat(${visibleNavigationItems.length + 1}, minmax(0, 1fr))` }}
           >
             {visibleNavigationItems.map((item) => {
               const Icon = item.icon;
@@ -298,6 +375,48 @@ export function AppShell({
                 </Link>
               );
             })}
+
+            <div ref={mobileApiMenuRef} className="relative">
+              {apiMenuOpen ? (
+                <div
+                  className="absolute bottom-full left-1/2 z-50 mb-3 w-44 -translate-x-1/2 overflow-hidden rounded-lg border border-slate-700 bg-slate-950/95 p-2 shadow-2xl shadow-slate-950/80"
+                  role="menu"
+                >
+                  {apiNavigationItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+                    return (
+                      <Link
+                        key={item.href}
+                        className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition hover:bg-slate-900/80 hover:text-cyan-100 ${active ? "bg-cyan-500/15 text-cyan-100" : "text-slate-200"}`}
+                        href={item.href}
+                        role="menuitem"
+                        onClick={() => setApiMenuOpen(false)}
+                      >
+                        <Icon size={16} aria-hidden="true" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <button
+                className={`flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-semibold transition ${
+                  apiNavigationActive || apiMenuOpen
+                    ? "bg-cyan-500/15 text-cyan-100"
+                    : "text-slate-400 hover:bg-slate-900/80 hover:text-cyan-100"
+                }`}
+                type="button"
+                aria-expanded={apiMenuOpen}
+                aria-haspopup="menu"
+                onClick={() => setApiMenuOpen((open) => !open)}
+              >
+                <Code2 size={18} aria-hidden="true" />
+                <span>APIs</span>
+              </button>
+            </div>
           </div>
         </nav>
       ) : null}

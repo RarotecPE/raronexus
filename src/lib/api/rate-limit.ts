@@ -3,8 +3,14 @@ import { getClientIp } from "./response";
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-export function rateLimit(request: Request, limit = 180, windowMs = 60_000) {
-  const key = getClientIp(request);
+export function rateLimit(
+  request: Request,
+  limit = 180,
+  windowMs = 60_000,
+  scope = "default",
+  identity?: string,
+) {
+  const key = `${scope}:${identity ?? getClientIp(request)}`;
   const now = Date.now();
   const current = buckets.get(key);
 

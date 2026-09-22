@@ -46,6 +46,156 @@ export const openApiSpec = {
     },
   },
   paths: {
+    "/constants/{name}": {
+      get: {
+        summary: "Obter uma constante JSON",
+        description: "Resolve o nome para a versão atual e devolve o JSON bruto. Constantes privadas exigem um token global do RaroNexus.",
+        tags: ["Constants"],
+        servers: [{ url: "/api" }],
+        parameters: [
+          {
+            name: "name",
+            in: "path",
+            required: true,
+            schema: { type: "string", pattern: "^[a-z0-9][a-z0-9_.-]{1,79}$" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Conteúdo JSON da constante",
+            content: {
+              "application/json": {
+                schema: {
+                  description: "Qualquer raiz JSON válida.",
+                  oneOf: [
+                    { type: "object", additionalProperties: true },
+                    { type: "array", items: {} },
+                    { type: "string" },
+                    { type: "number" },
+                    { type: "boolean" },
+                  ],
+                  nullable: true,
+                },
+              },
+            },
+          },
+          "401": { description: "Sessão global necessária para uma constante privada" },
+          "404": { description: "Constante não encontrada" },
+          "410": { description: "Versão expirada" },
+          "429": { description: "Limite de requisições excedido" },
+        },
+      },
+    },
+    "/constants/content/{constantId}/{version}": {
+      get: {
+        summary: "Obter conteúdo versionado da constante (Storage)",
+        description: "Devolve o JSON bruto descompactado do storage com suporte a ETag (304 Not Modified) e Cache-Control imutável.",
+        tags: ["Constants"],
+        servers: [{ url: "/api" }],
+        parameters: [
+          { name: "constantId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+          { name: "version", in: "path", required: true, schema: { type: "integer", minimum: 1 } },
+          { name: "If-None-Match", in: "header", required: false, schema: { type: "string" } },
+        ],
+        responses: {
+          "200": { description: "Conteúdo JSON descompactado" },
+          "304": { description: "Conteúdo não modificado (ETag coincidente)" },
+          "401": { description: "Sessão global necessária para constante privada" },
+          "404": { description: "Constante ou versão não encontrada" },
+          "429": { description: "Limite de requisições excedido" },
+        },
+      },
+    },
+    "/constants": {
+      get: {
+        summary: "Listar constantes (Admin)",
+        description: "Lista todas as constantes cadastradas com metadados, versões atuais e tamanhos.",
+        tags: ["Constants"],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": { description: "Lista de constantes" },
+          "401": { description: "Não autenticado" },
+          "403": { description: "Requer privilégios de administrador" },
+        },
+      },
+      post: {
+        summary: "Criar constante (Admin)",
+        description: "Cria uma nova constante JSON versionada. Limite de até 10 MB.",
+        tags: ["Constants"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["name", "is_public", "content"],
+                properties: {
+                  name: { type: "string", pattern: "^[a-z0-9][a-z0-9_.-]{1,79}$" },
+                  is_public: { type: "boolean" },
+                  content: { type: "string", description: "JSON em formato de texto válido" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Constante criada com versão 1" },
+          "400": { description: "Dados inválidos ou JSON mal formatado" },
+          "409": { description: "Já existe constante com este nome" },
+        },
+      },
+    },
+    "/constants/{id}": {
+      get: {
+        summary: "Obter detalhes e conteúdo da constante (Admin)",
+        tags: ["Constants"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: {
+          "200": { description: "Detalhes e conteúdo da constante" },
+          "404": { description: "Constante não encontrada" },
+        },
+      },
+      put: {
+        summary: "Atualizar e publicar nova versão da constante (Admin)",
+        tags: ["Constants"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["name", "is_public", "content", "expected_version", "expected_updated_at"],
+                properties: {
+                  name: { type: "string" },
+                  is_public: { type: "boolean" },
+                  content: { type: "string" },
+                  expected_version: { type: "integer" },
+                  expected_updated_at: { type: "string", format: "date-time" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Nova versão publicada" },
+          "409": { description: "Conflito de concorrência ou nome duplicado" },
+        },
+      },
+      delete: {
+        summary: "Excluir constante e histórico de versões (Admin)",
+        tags: ["Constants"],
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: {
+          "200": { description: "Constante e arquivos removidos" },
+          "404": { description: "Constante não encontrada" },
+        },
+      },
+    },
     "/email/send": {
       post: {
         summary: "Enviar e-mail padronizado por aplicacao",
@@ -551,6 +701,60 @@ export const openApiSpec = {
           { name: "applicationId", in: "path", required: true, schema: { type: "string" } },
         ],
         responses: { "200": { description: "Resultado de acesso" } },
+      },
+    },
+    "/applications/authorized-users": {
+      post: {
+        summary: "Listar usuários autorizados para a plataforma (M2M)",
+        description: "Endpoint Machine-to-Machine para plataformas satélite sincronizarem usuários e permissões atribuídas.",
+        tags: ["Applications"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["client_id", "client_secret"],
+                properties: {
+                  client_id: { type: "string" },
+                  client_secret: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Lista de usuários autorizados com perfil e role" },
+          "401": { description: "Credenciais de aplicação inválidas" },
+        },
+      },
+    },
+    "/sso/authorize": {
+      post: {
+        summary: "Autorizar acesso SSO e emitir código de autorização",
+        description: "Valida a sessão global do usuário e emite um authorization_code de uso único para redirecionamento OAuth2.",
+        tags: ["SSO"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["client_id", "redirect_uri"],
+                properties: {
+                  client_id: { type: "string" },
+                  redirect_uri: { type: "string", format: "uri" },
+                  state: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Código gerado com URL de redirecionamento" },
+          "401": { description: "Sessão global não encontrada" },
+          "403": { description: "Usuário não possui acesso a esta aplicação" },
+        },
       },
     },
   },
