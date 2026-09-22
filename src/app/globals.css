@@ -24,6 +24,35 @@ textarea {
   font: inherit;
 }
 
+button,
+[role="button"],
+[type="button"],
+[type="submit"],
+[type="reset"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+[type="button"]:disabled,
+[type="submit"]:disabled,
+[type="reset"]:disabled {
+  cursor: not-allowed;
+}
+
+select:not(:disabled),
+summary,
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled) {
+  cursor: pointer;
+}
+
+select:disabled,
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled {
+  cursor: not-allowed;
+}
+
 .swagger-shell {
   overflow: hidden;
   border: 1px solid rgba(56, 189, 248, 0.22);
@@ -56,6 +85,11 @@ textarea {
   border-color: rgba(125, 211, 252, 0.7);
 }
 
+.btn-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .btn-secondary {
   display: inline-flex;
   min-height: 44px;
@@ -75,6 +109,11 @@ textarea {
 .btn-secondary:hover {
   background: rgba(30, 41, 59, 0.92);
   border-color: rgba(56, 189, 248, 0.5);
+}
+
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .field {
