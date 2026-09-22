@@ -524,7 +524,6 @@ export function ConstantsAdmin() {
               <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
                 <FileJson className="mb-4 text-cyan-300" size={36} aria-hidden="true" />
                 <h2 className="font-semibold text-white">Selecione ou crie uma constante</h2>
-                <p className="mt-2 text-sm text-slate-500">O conteúdo JSON ficará compactado no storage privado.</p>
               </div>
             ) : detailLoading ? (
               <div className="flex flex-1 items-center justify-center text-sm text-slate-500">Carregando conteúdo...</div>
@@ -562,7 +561,7 @@ export function ConstantsAdmin() {
                         className="field font-mono"
                         value={editor.name}
                         onChange={(event) => setEditor({ ...editor, name: event.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, "") })}
-                        placeholder="exemplo: stock-categories"
+                        placeholder="Inserir nome"
                         maxLength={80}
                       />
                     </label>
