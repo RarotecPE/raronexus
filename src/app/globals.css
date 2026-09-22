@@ -53,16 +53,6 @@ input[type="radio"]:disabled {
   cursor: not-allowed;
 }
 
-.swagger-shell {
-  overflow: hidden;
-  border: 1px solid rgba(56, 189, 248, 0.22);
-  border-radius: 8px;
-  background: #f8fafc;
-}
-
-.swagger-shell .swagger-ui {
-  padding: 20px;
-}
 
 .btn-primary {
   display: inline-flex;

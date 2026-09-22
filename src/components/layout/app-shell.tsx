@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
   AppWindow,
-  BookOpen,
   Braces,
   ChevronDown,
   ExternalLink,
@@ -37,7 +36,6 @@ const navigationItems = [
 const apiNavigationItems = [
   { label: "E-mails", href: "/admin/emails/global", icon: Mail },
   { label: "Constantes", href: "/admin/constants", icon: Braces },
-  { label: "Documentação", href: "/swagger", icon: BookOpen },
 ];
 
 export function AppShell({

@@ -13,7 +13,7 @@ O sistema atua como o ponto focal de identidade, autorização e integração pa
 - **Catálogo de Aplicações & Permissões**: Cadastro de sistemas clientes (`applications`), definição de papéis e cargos por aplicativo (`application_roles`) e controle de acesso individual (`user_applications`).
 - **Perfil do Usuário**: Gestão centralizada de dados cadastrais, cargo, foto/avatar e alteração de credenciais.
 - **Hub Transacional de E-mails**: Serviço centralizado de disparo de e-mails com templates HTML dinâmicos para atendimento às aplicações satélites do ecossistema.
-- **API REST & Documentação Swagger**: Endpoints RESTful versionados em `/api/v1` com DTOs tipados, validação Zod e documentação interativa OpenAPI/Swagger disponível em `/swagger`.
+- **APIs & Constantes Centralizadas**: Endpoints RESTful versionados para constantes do ecossistema, e-mails e gerenciamento de aplicações com DTOs tipados e validação Zod.
 
 ---
 
@@ -25,7 +25,6 @@ O sistema atua como o ponto focal de identidade, autorização e integração pa
 - **Linguagem**: TypeScript 5
 - **Autenticação & Banco de Dados**: Supabase Auth + PostgreSQL com Row Level Security (RLS)
 - **Validação de Dados**: Zod
-- **Documentação de API**: Swagger UI React (`/swagger`)
 - **E-mails**: Nodemailer + SMTP corporativo
 
 ---
