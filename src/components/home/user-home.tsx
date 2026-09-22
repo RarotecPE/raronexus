@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { AppWindow, Braces, CheckCircle2, Mail, UsersRound } from "lucide-react";
+import { AppWindow, Braces, CheckCircle2, Mail, UserRound, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -10,28 +10,39 @@ import type { UserResponseDTO } from "@/lib/api/types";
 
 const actions = [
   {
-    title: "Usuários",
-    description: "Acesse a área de usuários do Nexus.",
-    href: "/admin/users",
-    icon: UsersRound,
-  },
-  {
     title: "Plataformas",
     description: "Acesse os sistemas liberados para sua conta.",
     href: "/applications",
     icon: AppWindow,
+    adminOnly: false,
+  },
+  {
+    title: "Usuários",
+    description: "Acesse a área de usuários do Nexus.",
+    href: "/admin/users",
+    icon: UsersRound,
+    adminOnly: true,
+  },
+  {
+    title: "Editar perfil",
+    description: "Atualize seus dados pessoais e de acesso.",
+    href: "/profile",
+    icon: UserRound,
+    adminOnly: false,
   },
   {
     title: "E-mails",
     description: "Configure a central de envio das plataformas.",
     href: "/admin/emails/global",
     icon: Mail,
+    adminOnly: true,
   },
   {
     title: "Constantes",
     description: "Acesse a central de constantes das APIs.",
     href: "/admin/constants",
     icon: Braces,
+    adminOnly: true,
   },
 ];
 
@@ -62,6 +73,7 @@ export function UserHome() {
   }, []);
 
   const displayName = user?.nome || user?.email || "usuário";
+  const visibleActions = actions.filter((action) => !action.adminOnly || Boolean(user?.is_admin));
 
   return (
     <AppShell title="Início">
@@ -100,8 +112,14 @@ export function UserHome() {
             </div>
           </section>
 
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {actions.map((action) => (
+          <section
+            className={`grid gap-3 ${
+              visibleActions.length <= 2
+                ? "max-w-2xl sm:grid-cols-2"
+                : "sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5"
+            }`}
+          >
+            {visibleActions.map((action) => (
               <Link
                 key={action.href}
                 className="group rounded-lg border border-slate-700/70 bg-slate-950/45 p-4 transition hover:border-cyan-400/45 hover:bg-slate-900/70"

@@ -28,9 +28,9 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 type HeaderMenu = "applications" | "account" | null;
 
 const navigationItems = [
-  { label: "Início", href: "/home", icon: Home },
-  { label: "Usuários", href: "/admin/users", icon: UsersRound },
-  { label: "Plataformas", href: "/applications", icon: AppWindow },
+  { label: "Início", href: "/home", icon: Home, adminOnly: false },
+  { label: "Plataformas", href: "/applications", icon: AppWindow, adminOnly: false },
+  { label: "Usuários", href: "/admin/users", icon: UsersRound, adminOnly: true },
 ];
 
 const apiNavigationItems = [
@@ -160,12 +160,13 @@ export function AppShell({
     router.push("/login");
   }
 
-  const visibleNavigationItems = navigationItems;
   const apiNavigationActive = apiNavigationItems.some(
     (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
   );
   const displayName = user?.nome || user?.email || "Usuário";
   const roleLabel = isAdmin ? "Administrador" : "Usuário";
+  const isApiBlocked = !checkingSession && !isAdmin;
+  const isApiPending = checkingSession;
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#0f3b68_0,#020617_36%,#020617_100%)] text-slate-100">
@@ -179,9 +180,42 @@ export function AppShell({
           </Link>
 
           <nav className="absolute left-1/2 top-1/2 z-30 hidden -translate-x-1/2 -translate-y-1/2 flex-wrap justify-center gap-2 lg:flex">
-            {visibleNavigationItems.map((item) => {
+            {navigationItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isBlocked = item.adminOnly && !checkingSession && !isAdmin;
+              const isPending = item.adminOnly && checkingSession;
+
+              if (isBlocked) {
+                return (
+                  <button
+                    key={item.href}
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    title="Acesso restrito a administradores"
+                    className="btn-secondary opacity-40 cursor-not-allowed"
+                  >
+                    <Icon size={16} aria-hidden="true" />
+                    {item.label}
+                  </button>
+                );
+              }
+
+              if (isPending) {
+                return (
+                  <button
+                    key={item.href}
+                    type="button"
+                    aria-disabled="true"
+                    tabIndex={-1}
+                    className="btn-secondary pointer-events-none"
+                  >
+                    <Icon size={16} aria-hidden="true" />
+                    {item.label}
+                  </button>
+                );
+              }
 
               return (
                 <Link
@@ -197,11 +231,22 @@ export function AppShell({
 
             <div ref={apiMenuRef} className="relative">
               <button
-                className={`btn-secondary ${apiNavigationActive || apiMenuOpen ? "border-cyan-300/60 bg-cyan-500/15 text-cyan-100" : ""}`}
+                className={`btn-secondary ${
+                  isApiBlocked
+                    ? "opacity-40 cursor-not-allowed"
+                    : isApiPending
+                      ? "pointer-events-none"
+                      : apiNavigationActive || apiMenuOpen
+                        ? "border-cyan-300/60 bg-cyan-500/15 text-cyan-100"
+                        : ""
+                }`}
                 type="button"
+                disabled={isApiBlocked}
+                aria-disabled={isApiBlocked || isApiPending}
+                title={isApiBlocked ? "Acesso restrito a administradores" : undefined}
                 aria-expanded={apiMenuOpen}
-                aria-haspopup="menu"
-                onClick={() => setApiMenuOpen((open) => !open)}
+                aria-haspopup={!checkingSession && isAdmin ? "menu" : undefined}
+                onClick={!checkingSession && isAdmin ? () => setApiMenuOpen((open) => !open) : undefined}
               >
                 <Code2 size={16} aria-hidden="true" />
                 APIs
@@ -212,7 +257,7 @@ export function AppShell({
                 />
               </button>
 
-              {apiMenuOpen ? (
+              {!checkingSession && isAdmin && apiMenuOpen ? (
                 <div
                   className="absolute left-1/2 z-50 mt-2 w-52 -translate-x-1/2 overflow-hidden rounded-lg border border-slate-700 bg-slate-950 p-2 shadow-2xl shadow-slate-950/90 backdrop-blur-md"
                   role="menu"
@@ -350,15 +395,47 @@ export function AppShell({
         ) : children}
       </div>
 
-      {!checkingSession ? (
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-cyan-400/15 bg-slate-950/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-2xl shadow-slate-950/80 backdrop-blur lg:hidden">
           <div
             className="mx-auto grid max-w-md gap-1"
-            style={{ gridTemplateColumns: `repeat(${visibleNavigationItems.length + 1}, minmax(0, 1fr))` }}
+            style={{ gridTemplateColumns: `repeat(${navigationItems.length + 1}, minmax(0, 1fr))` }}
           >
-            {visibleNavigationItems.map((item) => {
+            {navigationItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isBlocked = item.adminOnly && !checkingSession && !isAdmin;
+              const isPending = item.adminOnly && checkingSession;
+
+              if (isBlocked) {
+                return (
+                  <button
+                    key={item.href}
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    title="Acesso restrito a administradores"
+                    className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-semibold text-slate-500 opacity-40 cursor-not-allowed"
+                  >
+                    <Icon size={18} aria-hidden="true" />
+                    <span className="max-w-full truncate">{item.label}</span>
+                  </button>
+                );
+              }
+
+              if (isPending) {
+                return (
+                  <button
+                    key={item.href}
+                    type="button"
+                    aria-disabled="true"
+                    tabIndex={-1}
+                    className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-semibold text-slate-400 pointer-events-none"
+                  >
+                    <Icon size={18} aria-hidden="true" />
+                    <span className="max-w-full truncate">{item.label}</span>
+                  </button>
+                );
+              }
 
               return (
                 <Link
@@ -377,7 +454,7 @@ export function AppShell({
             })}
 
             <div ref={mobileApiMenuRef} className="relative">
-              {apiMenuOpen ? (
+              {!checkingSession && isAdmin && apiMenuOpen ? (
                 <div
                   className="absolute bottom-full left-1/2 z-50 mb-3 w-44 -translate-x-1/2 overflow-hidden rounded-lg border border-slate-700 bg-slate-950/95 p-2 shadow-2xl shadow-slate-950/80"
                   role="menu"
@@ -404,14 +481,21 @@ export function AppShell({
 
               <button
                 className={`flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-semibold transition ${
-                  apiNavigationActive || apiMenuOpen
-                    ? "bg-cyan-500/15 text-cyan-100"
-                    : "text-slate-400 hover:bg-slate-900/80 hover:text-cyan-100"
+                  isApiBlocked
+                    ? "text-slate-500 opacity-40 cursor-not-allowed"
+                    : isApiPending
+                      ? "text-slate-400 pointer-events-none"
+                      : apiNavigationActive || apiMenuOpen
+                        ? "bg-cyan-500/15 text-cyan-100"
+                        : "text-slate-400 hover:bg-slate-900/80 hover:text-cyan-100"
                 }`}
                 type="button"
+                disabled={isApiBlocked}
+                aria-disabled={isApiBlocked || isApiPending}
+                title={isApiBlocked ? "Acesso restrito a administradores" : undefined}
                 aria-expanded={apiMenuOpen}
-                aria-haspopup="menu"
-                onClick={() => setApiMenuOpen((open) => !open)}
+                aria-haspopup={!checkingSession && isAdmin ? "menu" : undefined}
+                onClick={!checkingSession && isAdmin ? () => setApiMenuOpen((open) => !open) : undefined}
               >
                 <Code2 size={18} aria-hidden="true" />
                 <span>APIs</span>
@@ -419,7 +503,6 @@ export function AppShell({
             </div>
           </div>
         </nav>
-      ) : null}
 
       <InstallPromptCard />
     </main>
