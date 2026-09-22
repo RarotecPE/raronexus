@@ -30,7 +30,7 @@ test("rejeita JSON inválido, vazio e nome inseguro", () => {
   }).success, false);
 });
 
-test("rejeita JSON bruto acima de 5 MB", () => {
+test("rejeita JSON bruto acima de 10 MB", () => {
   const content = `"${"a".repeat(MAX_CONSTANT_BYTES)}"`;
   assert.equal(createConstantSchema.safeParse({
     name: "large-json",

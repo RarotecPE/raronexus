@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const MAX_CONSTANT_BYTES = 5 * 1024 * 1024;
+export const MAX_CONSTANT_BYTES = 10 * 1024 * 1024;
 export const CONSTANT_NAME_PATTERN = /^[a-z0-9][a-z0-9_.-]{1,79}$/;
 
 const constantName = z
@@ -19,7 +19,7 @@ const constantContent = z
   .refine((value) => value.trim().length > 0, "O JSON não pode ficar vazio.")
   .refine(
     (value) => Buffer.byteLength(value, "utf8") <= MAX_CONSTANT_BYTES,
-    "O JSON deve ter no máximo 5 MB.",
+    "O JSON deve ter no máximo 10 MB.",
   )
   .superRefine((value, context) => {
     try {

@@ -17,12 +17,14 @@ import {
   Search,
   ShieldAlert,
   Trash2,
+  Upload,
   WandSparkles,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
 import { ApiFetchError, apiFetch } from "@/lib/api/client-fetch";
+import { MAX_CONSTANT_BYTES } from "@/lib/api/validators/constant";
 import type { ApiConstantDetail, ApiConstantSummary } from "@/lib/api/constant-types";
 
 type AlertState = { type: SystemAlertType; message: string } | null;
@@ -320,6 +322,120 @@ export function ConstantsAdmin() {
     }
   }
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
+
+  useEffect(() => {
+    function preventDefaults(e: DragEvent) {
+      e.preventDefault();
+    }
+    window.addEventListener("dragover", preventDefaults);
+    window.addEventListener("drop", preventDefaults);
+    return () => {
+      window.removeEventListener("dragover", preventDefaults);
+      window.removeEventListener("drop", preventDefaults);
+    };
+  }, []);
+
+  function triggerImport() {
+    fileInputRef.current?.click();
+  }
+
+  async function processJsonFile(file: File) {
+    if (!file.name.toLowerCase().endsWith(".json") && file.type !== "application/json") {
+      setAlert({
+        type: "error",
+        message: `O arquivo "${file.name}" não é um arquivo JSON válido (.json).`,
+      });
+      return;
+    }
+
+    if (file.size > MAX_CONSTANT_BYTES) {
+      setAlert({
+        type: "error",
+        message: `O arquivo "${file.name}" tem ${(file.size / 1024 / 1024).toFixed(1)} MB e excede o limite máximo de 10 MB.`,
+      });
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const cleanFileName = file.name
+        .replace(/\.json$/i, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9_.-]/g, "")
+        .slice(0, 80);
+
+      setEditor((prev) => {
+        const base = prev ?? createEditor();
+        const nextName = base.isNew && !base.name.trim() ? cleanFileName : base.name;
+        return {
+          ...base,
+          name: nextName,
+          content: text,
+        };
+      });
+
+      setAlert({
+        type: "success",
+        message: `Arquivo "${file.name}" importado com sucesso (${formatBytes(file.size)}).`,
+      });
+    } catch {
+      setAlert({
+        type: "error",
+        message: `Não foi possível ler o arquivo "${file.name}".`,
+      });
+    }
+  }
+
+  async function handleFileImport(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      await processJsonFile(file);
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      void processJsonFile(file);
+    }
+  }
+
   function formatJson() {
     if (!editor || jsonError) return;
     setEditor({ ...editor, content: JSON.stringify(JSON.parse(editor.content), null, 2) });
@@ -341,7 +457,28 @@ export function ConstantsAdmin() {
           <p className="mt-2 max-w-md text-sm text-slate-400">Somente administradores do RaroNexus podem gerenciar constantes.</p>
         </section>
       ) : (
-        <div className="grid min-h-[calc(100vh-12rem)] gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div
+          className="relative grid min-h-[calc(100vh-12rem)] gap-4 lg:grid-cols-[320px_minmax(0,1fr)]"
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {isDragging ? (
+            <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-cyan-400 bg-slate-950/85 backdrop-blur-sm transition-all">
+              <div className="flex flex-col items-center gap-3 p-6 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-300 shadow-lg shadow-cyan-500/10">
+                  <Upload size={32} className="animate-bounce" aria-hidden="true" />
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  Solte o arquivo JSON aqui
+                </h3>
+                <p className="max-w-sm text-sm text-slate-300">
+                  O conteúdo será importado diretamente para o editor de constantes (limite de 10 MB).
+                </p>
+              </div>
+            </div>
+          ) : null}
           <aside className={`panel min-h-0 p-3 ${editor ? "hidden lg:flex" : "flex"} flex-col`}>
             <div className="mb-3 flex items-center justify-between gap-2">
               <div>
@@ -455,12 +592,36 @@ export function ConstantsAdmin() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="text-sm font-semibold text-slate-200">Conteúdo JSON</h3>
-                      <p className="text-xs text-slate-500">Aceita qualquer raiz JSON válida. Limite de 5 MB.</p>
+                      <p className="text-xs text-slate-500">Aceita qualquer raiz JSON válida. Limite de 10 MB.</p>
                     </div>
-                    <button type="button" className="btn-secondary !min-h-9 !px-3" disabled={Boolean(jsonError)} onClick={formatJson}>
-                      <WandSparkles size={15} aria-hidden="true" />
-                      Formatar
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".json,application/json"
+                        className="hidden"
+                        onChange={handleFileImport}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary !min-h-9 !px-3 text-xs"
+                        onClick={triggerImport}
+                        title="Importar arquivo .json"
+                      >
+                        <Upload size={15} aria-hidden="true" />
+                        Importar JSON
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary !min-h-9 !px-3 text-xs"
+                        disabled={Boolean(jsonError)}
+                        onClick={formatJson}
+                        title="Formatar indentação do JSON"
+                      >
+                        <WandSparkles size={15} aria-hidden="true" />
+                        Formatar
+                      </button>
+                    </div>
                   </div>
 
                   <div className="overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
