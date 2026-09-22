@@ -1,3 +1,4 @@
+import { USER_ROLE_COOKIE_NAME } from "@/components/auth/constants";
 import { handleApi } from "@/lib/api/handler";
 import { rateLimit } from "@/lib/api/rate-limit";
 import { ok } from "@/lib/api/response";
@@ -11,6 +12,7 @@ export async function POST(request: Request) {
     const result = token ? await service.revokeToken(token) : { revoked: false };
     const response = ok(result);
     response.cookies.delete(GLOBAL_SESSION_COOKIE_NAME);
+    response.cookies.delete(USER_ROLE_COOKIE_NAME);
     return response;
   });
 }

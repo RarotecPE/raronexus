@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { BRAND_ICON_URL } from "@/lib/brand";
+import { UserRoleProvider } from "@/components/auth/user-role-provider";
+import { USER_ROLE_COOKIE_NAME, type UserRole } from "@/components/auth/constants";
 import { EnvironmentBanner } from "@/components/layout/environment-banner";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { ThemeBootstrap } from "@/components/theme/theme-bootstrap";
@@ -26,11 +29,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const rawRole = cookieStore.get(USER_ROLE_COOKIE_NAME)?.value;
+  const initialRole: UserRole = rawRole === "admin" || rawRole === "user" ? rawRole : null;
+
   return (
     <html
       lang="pt-BR"
@@ -40,7 +47,9 @@ export default function RootLayout({
         <ThemeBootstrap />
         <ServiceWorkerRegister />
         <EnvironmentBanner />
-        {children}
+        <UserRoleProvider initialRole={initialRole}>
+          {children}
+        </UserRoleProvider>
       </body>
     </html>
   );

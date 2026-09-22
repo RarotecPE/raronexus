@@ -18,39 +18,41 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-button,
-input,
-textarea {
-  font: inherit;
-}
+@layer base {
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
 
-button,
-[role="button"],
-[type="button"],
-[type="submit"],
-[type="reset"] {
-  cursor: pointer;
-}
+  button,
+  [role="button"],
+  [type="button"],
+  [type="submit"],
+  [type="reset"] {
+    cursor: pointer;
+  }
 
-button:disabled,
-[role="button"][aria-disabled="true"],
-[type="button"]:disabled,
-[type="submit"]:disabled,
-[type="reset"]:disabled {
-  cursor: not-allowed;
-}
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  [type="button"]:disabled,
+  [type="submit"]:disabled,
+  [type="reset"]:disabled {
+    cursor: not-allowed;
+  }
 
-select:not(:disabled),
-summary,
-input[type="checkbox"]:not(:disabled),
-input[type="radio"]:not(:disabled) {
-  cursor: pointer;
-}
+  select:not(:disabled),
+  summary,
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    cursor: pointer;
+  }
 
-select:disabled,
-input[type="checkbox"]:disabled,
-input[type="radio"]:disabled {
-  cursor: not-allowed;
+  select:disabled,
+  input[type="checkbox"]:disabled,
+  input[type="radio"]:disabled {
+    cursor: not-allowed;
+  }
 }
 
 

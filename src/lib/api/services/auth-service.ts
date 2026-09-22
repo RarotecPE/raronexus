@@ -41,6 +41,7 @@ export class AuthService {
         id: profile.id,
         nome: profile.nome ?? profile.email,
         email: profile.email,
+        is_admin: Boolean(profile.is_admin),
       },
     };
   }

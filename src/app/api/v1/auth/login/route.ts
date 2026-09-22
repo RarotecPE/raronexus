@@ -1,3 +1,4 @@
+import { USER_ROLE_COOKIE_NAME } from "@/components/auth/constants";
 import { handleApi } from "@/lib/api/handler";
 import { rateLimit } from "@/lib/api/rate-limit";
 import { ok } from "@/lib/api/response";
@@ -25,6 +26,13 @@ export async function POST(request: Request) {
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
+    });
+    response.cookies.set(USER_ROLE_COOKIE_NAME, data.user.is_admin ? "admin" : "user", {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 30 * 24 * 60 * 60,
     });
     return response;
   });
