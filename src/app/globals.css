@@ -249,8 +249,10 @@ body.theme-light [class~="border-cyan-400/25"] {
 }
 
 body.theme-light [class~="shadow-cyan-950/40"],
-body.theme-light [class~="shadow-slate-950/70"] {
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12) !important;
+body.theme-light [class~="shadow-slate-950/70"],
+body.theme-light [class~="shadow-slate-950/80"],
+body.theme-light [class~="shadow-slate-950/90"] {
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12) !important;
 }
 
 body.theme-light .btn-primary {
@@ -308,12 +310,34 @@ body.theme-light table tbody tr:hover {
   background-color: #f8fafc !important;
 }
 
+body.theme-light [class~="hover:bg-slate-900/80"]:hover,
 body.theme-light [class~="hover:bg-slate-900/70"]:hover,
+body.theme-light [class~="hover:bg-slate-900/65"]:hover,
 body.theme-light [class~="hover:bg-slate-800"]:hover,
 body.theme-light [class~="hover:bg-slate-800/50"]:hover,
 body.theme-light [class~="hover:bg-slate-800/40"]:hover,
 body.theme-light [class~="hover:bg-slate-800/30"]:hover {
   background-color: #eef8fd !important;
+}
+
+body.theme-light [class~="hover:text-cyan-100"]:hover,
+body.theme-light [class~="hover:text-cyan-200"]:hover,
+body.theme-light [class~="hover:text-cyan-50"]:hover {
+  color: #0284c7 !important;
+}
+
+body.theme-light [class~="hover:text-white"]:hover {
+  color: #0f172a !important;
+}
+
+body.theme-light [class~="hover:text-rose-100"]:hover,
+body.theme-light [class~="hover:text-rose-200"]:hover {
+  color: #be123c !important;
+}
+
+body.theme-light [class~="hover:text-rose-200"]:hover {
+  background-color: #fff1f2 !important;
+  color: #be123c !important;
 }
 
 body.theme-light [class~="hover:border-cyan-400/45"]:hover,
