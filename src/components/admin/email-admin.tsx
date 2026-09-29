@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Eye, Globe2, ListChecks, Mail, Plus, Redo2, RefreshCw, RotateCcw, Save, ScrollText, Send, Server, ShieldCheck, Trash2, Undo2, X } from "lucide-react";
+import { ChevronDown, Eye, Globe2, ListChecks, Mail, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Server, ShieldCheck, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ApplicationLogo } from "@/components/applications/application-logo";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
@@ -655,14 +655,6 @@ function HtmlTemplateEditor({
   const lastEmittedValue = useRef<string>(value);
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
 
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
-
-  function syncUndoRedoState() {
-    setCanUndo(historyIndexRef.current > 0);
-    setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
-  }
-
   useEffect(() => {
     if (value !== lastEmittedValue.current) {
       historyRef.current = [
@@ -675,7 +667,6 @@ function HtmlTemplateEditor({
       ];
       historyIndexRef.current = 0;
       lastEmittedValue.current = value;
-      syncUndoRedoState();
     }
   }, [value]);
 
@@ -722,7 +713,6 @@ function HtmlTemplateEditor({
     }
     lastEmittedValue.current = entry.value;
     onChange(entry.value);
-    syncUndoRedoState();
   }
 
   function redo() {
@@ -747,7 +737,6 @@ function HtmlTemplateEditor({
     }
     lastEmittedValue.current = entry.value;
     onChange(entry.value);
-    syncUndoRedoState();
   }
 
   function commitNewHistoryEntry(nextVal: string, nextStart: number, nextEnd: number) {
@@ -774,7 +763,6 @@ function HtmlTemplateEditor({
     }
     lastEmittedValue.current = nextVal;
     onChange(nextVal);
-    syncUndoRedoState();
   }
 
   function insertTag(tag: string, singleUse = false) {
@@ -992,7 +980,6 @@ function HtmlTemplateEditor({
 
     lastEmittedValue.current = nextVal;
     onChange(nextVal);
-    syncUndoRedoState();
   }
 
   return (
@@ -1019,74 +1006,48 @@ function HtmlTemplateEditor({
           }}
         />
       </Field>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
-          <button
-            className="btn-secondary min-h-9 px-3 py-2 text-xs"
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => insertTag("{{body}}", true)}
-            disabled={value.includes("{{body}}")}
-          >
-            {"{{body}}"}
-          </button>
-          <button
-            className="btn-secondary min-h-9 px-3 py-2 text-xs"
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => insertTag("{{logo}}")}
-          >
-            {"{{logo}}"}
-          </button>
-          <button
-            className="btn-secondary min-h-9 px-3 py-2 text-xs"
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => insertTag("{{primary_color}}")}
-          >
-            {"{{primary_color}}"}
-          </button>
-          <button
-            className="btn-secondary min-h-9 px-3 py-2 text-xs"
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => insertTag("{{platform_name}}")}
-          >
-            {"{{platform_name}}"}
-          </button>
-          <button
-            className="btn-secondary min-h-9 px-3 py-2 text-xs"
-            type="button"
-            onClick={() => setShowPreview((cur) => !cur)}
-          >
-            <Eye size={14} aria-hidden="true" />
-            {showPreview ? "Ocultar preview" : "Ver preview"}
-          </button>
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-slate-400">
-          <button
-            className="btn-secondary min-h-9 px-2.5 py-2 text-xs disabled:opacity-35"
-            type="button"
-            title="Desfazer (Ctrl + Z)"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={undo}
-            disabled={!canUndo}
-          >
-            <Undo2 size={13} aria-hidden="true" />
-            <span className="hidden sm:inline">Desfazer</span>
-          </button>
-          <button
-            className="btn-secondary min-h-9 px-2.5 py-2 text-xs disabled:opacity-35"
-            type="button"
-            title="Refazer (Ctrl + Y ou Ctrl + Shift + Z)"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={redo}
-            disabled={!canRedo}
-          >
-            <Redo2 size={13} aria-hidden="true" />
-            <span className="hidden sm:inline">Refazer</span>
-          </button>
-        </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          className="btn-secondary min-h-9 px-3 py-2 text-xs"
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => insertTag("{{body}}", true)}
+          disabled={value.includes("{{body}}")}
+        >
+          {"{{body}}"}
+        </button>
+        <button
+          className="btn-secondary min-h-9 px-3 py-2 text-xs"
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => insertTag("{{logo}}")}
+        >
+          {"{{logo}}"}
+        </button>
+        <button
+          className="btn-secondary min-h-9 px-3 py-2 text-xs"
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => insertTag("{{primary_color}}")}
+        >
+          {"{{primary_color}}"}
+        </button>
+        <button
+          className="btn-secondary min-h-9 px-3 py-2 text-xs"
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => insertTag("{{platform_name}}")}
+        >
+          {"{{platform_name}}"}
+        </button>
+        <button
+          className="btn-secondary min-h-9 px-3 py-2 text-xs"
+          type="button"
+          onClick={() => setShowPreview((cur) => !cur)}
+        >
+          <Eye size={14} aria-hidden="true" />
+          {showPreview ? "Ocultar preview" : "Ver preview"}
+        </button>
       </div>
       {showPreview ? (
         <div className="mt-4 overflow-hidden rounded-lg border border-slate-800 bg-white">
