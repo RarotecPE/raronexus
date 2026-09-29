@@ -29,6 +29,7 @@ export type TemplatedEmailInput = {
   logoUrl?: string | null;
   logoAlt?: string;
   fromName?: string;
+  platformName?: string;
   replyTo?: string | null;
   attachments?: Mail.Attachment[];
 };
@@ -296,6 +297,7 @@ export async function sendStandardEmail(input: StandardEmailInput) {
 export async function sendTemplatedEmail(input: TemplatedEmailInput) {
   const fromEmail = requireEnv("SMTP_FROM_EMAIL");
   const fromName = input.fromName || process.env.SMTP_FROM_NAME?.trim() || "RaroNexus";
+  const platformName = input.platformName || input.fromName || "Plataforma";
   const primaryColor = input.primaryColor || "#0ea5e9";
   const logoHtml = input.logoUrl
     ? `<img src="${escapeHtml(input.logoUrl)}" alt="${escapeHtml(input.logoAlt || fromName)}" width="72" style="display: inline-block; width: 72px; height: auto;" />`
@@ -303,7 +305,10 @@ export async function sendTemplatedEmail(input: TemplatedEmailInput) {
   const html = input.htmlTemplate
     .replaceAll("{{logo}}", logoHtml)
     .replaceAll("{{body}}", sanitizeLimitedEmailHtml(input.bodyHtml))
-    .replaceAll("{{primary_color}}", escapeHtml(primaryColor));
+    .replaceAll("{{primary_color}}", escapeHtml(primaryColor))
+    .replaceAll("{{primary-color}}", escapeHtml(primaryColor))
+    .replaceAll("{{platform-name}}", escapeHtml(platformName))
+    .replaceAll("{{platform_name}}", escapeHtml(platformName));
 
   const info = await getTransporter().sendMail({
     from: `"${fromName}" <${fromEmail}>`,

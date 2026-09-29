@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Eye, Globe2, ListChecks, Mail, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Server, ShieldCheck, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Eye, Globe2, ListChecks, Mail, Plus, Redo2, RefreshCw, RotateCcw, Save, ScrollText, Send, Server, ShieldCheck, Trash2, Undo2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ApplicationLogo } from "@/components/applications/application-logo";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
@@ -98,14 +98,17 @@ function Field({ label, description, children }: { label: string; description?: 
   );
 }
 
-function buildEndpointPreviewHtml(template: string, logoUrl?: string | null, primaryColor = "#0ea5e9") {
+function buildEndpointPreviewHtml(template: string, logoUrl?: string | null, primaryColor = "#0ea5e9", platformName = "Plataforma") {
   const logo = logoUrl
     ? `<img src="${logoUrl}" alt="Logo" width="72" style="display: inline-block; width: 72px; height: auto;" />`
     : `<div style="display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 16px; background: #e0f2fe; color: #0369a1; font-weight: 800;">RN</div>`;
 
   return (template || "{{body}}")
     .replaceAll("{{logo}}", logo)
-    .replaceAll("{{primary_color}}", primaryColor);
+    .replaceAll("{{primary_color}}", primaryColor)
+    .replaceAll("{{primary-color}}", primaryColor)
+    .replaceAll("{{platform-name}}", platformName)
+    .replaceAll("{{platform_name}}", platformName);
 }
 
 function EmailSidebar({ section, dirty }: { section: EmailAdminSection; dirty: boolean }) {
@@ -593,6 +596,512 @@ export function EmailAdmin({ section }: { section: EmailAdminSection }) {
   );
 }
 
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+type HistoryEntry = {
+  value: string;
+  selectionStart: number;
+  selectionEnd: number;
+  timestamp: number;
+};
+
+type ActionCategory = "word" | "space" | "punct";
+
+type LastAction = {
+  type: "typing" | "delete" | "other";
+  category?: ActionCategory;
+  timestamp: number;
+  cursor: number;
+};
+
+function getCharCategory(char: string): ActionCategory {
+  if (/\s/.test(char)) return "space";
+  if (/[\w\u00C0-\u017F-]/.test(char)) return "word";
+  return "punct";
+}
+
+function HtmlTemplateEditor({
+  value,
+  onChange,
+  logoUrl,
+  primaryColor = "#0ea5e9",
+  platformName = "Plataforma",
+  endpointName,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  logoUrl?: string | null;
+  primaryColor?: string;
+  platformName?: string;
+  endpointName?: string;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+
+  const historyRef = useRef<HistoryEntry[]>([
+    {
+      value,
+      selectionStart: value.length,
+      selectionEnd: value.length,
+      timestamp: Date.now(),
+    },
+  ]);
+  const historyIndexRef = useRef<number>(0);
+  const lastActionRef = useRef<LastAction>({
+    type: "other",
+    timestamp: 0,
+    cursor: 0,
+  });
+  const lastEmittedValue = useRef<string>(value);
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
+
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  function syncUndoRedoState() {
+    setCanUndo(historyIndexRef.current > 0);
+    setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
+  }
+
+  useEffect(() => {
+    if (value !== lastEmittedValue.current) {
+      historyRef.current = [
+        {
+          value,
+          selectionStart: value.length,
+          selectionEnd: value.length,
+          timestamp: Date.now(),
+        },
+      ];
+      historyIndexRef.current = 0;
+      lastEmittedValue.current = value;
+      syncUndoRedoState();
+    }
+  }, [value]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (pendingSelectionRef.current && textareaRef.current) {
+      const { start, end } = pendingSelectionRef.current;
+      textareaRef.current.setSelectionRange(start, end);
+      pendingSelectionRef.current = null;
+    }
+  });
+
+  function truncateRedo() {
+    if (historyIndexRef.current < historyRef.current.length - 1) {
+      historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
+    }
+  }
+
+  function trimHistoryLimit() {
+    if (historyRef.current.length > 250) {
+      historyRef.current = historyRef.current.slice(historyRef.current.length - 200);
+      historyIndexRef.current = historyRef.current.length - 1;
+    }
+  }
+
+  function undo() {
+    if (historyIndexRef.current <= 0) return;
+    historyIndexRef.current -= 1;
+    const entry = historyRef.current[historyIndexRef.current];
+    if (!entry) return;
+
+    lastActionRef.current = {
+      type: "other",
+      timestamp: Date.now(),
+      cursor: entry.selectionStart,
+    };
+    pendingSelectionRef.current = {
+      start: entry.selectionStart,
+      end: entry.selectionEnd,
+    };
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.value = entry.value;
+      textarea.setSelectionRange(entry.selectionStart, entry.selectionEnd);
+    }
+    lastEmittedValue.current = entry.value;
+    onChange(entry.value);
+    syncUndoRedoState();
+  }
+
+  function redo() {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    historyIndexRef.current += 1;
+    const entry = historyRef.current[historyIndexRef.current];
+    if (!entry) return;
+
+    lastActionRef.current = {
+      type: "other",
+      timestamp: Date.now(),
+      cursor: entry.selectionStart,
+    };
+    pendingSelectionRef.current = {
+      start: entry.selectionStart,
+      end: entry.selectionEnd,
+    };
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.value = entry.value;
+      textarea.setSelectionRange(entry.selectionStart, entry.selectionEnd);
+    }
+    lastEmittedValue.current = entry.value;
+    onChange(entry.value);
+    syncUndoRedoState();
+  }
+
+  function commitNewHistoryEntry(nextVal: string, nextStart: number, nextEnd: number) {
+    truncateRedo();
+    historyRef.current.push({
+      value: nextVal,
+      selectionStart: nextStart,
+      selectionEnd: nextEnd,
+      timestamp: Date.now(),
+    });
+    trimHistoryLimit();
+    historyIndexRef.current = historyRef.current.length - 1;
+    lastActionRef.current = {
+      type: "other",
+      timestamp: Date.now(),
+      cursor: nextStart,
+    };
+
+    pendingSelectionRef.current = { start: nextStart, end: nextEnd };
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.value = nextVal;
+      textarea.setSelectionRange(nextStart, nextEnd);
+    }
+    lastEmittedValue.current = nextVal;
+    onChange(nextVal);
+    syncUndoRedoState();
+  }
+
+  function insertTag(tag: string, singleUse = false) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    if (singleUse && value.includes(tag)) {
+      return;
+    }
+
+    if (document.activeElement !== textarea) {
+      textarea.focus();
+      const end = textarea.value.length;
+      textarea.setSelectionRange(end, end);
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const curVal = textarea.value;
+
+    const nextVal = curVal.slice(0, start) + tag + curVal.slice(end);
+    const nextPos = start + tag.length;
+
+    commitNewHistoryEntry(nextVal, nextPos, nextPos);
+  }
+
+  function handleTab(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const val = textarea.value;
+
+    if (e.shiftKey) {
+      const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+      const lineEnd = val.indexOf("\n", end);
+      const actualEnd = lineEnd === -1 ? val.length : lineEnd;
+      const lines = val.substring(lineStart, actualEnd).split("\n");
+
+      let removedTotal = 0;
+      let firstLineRemoved = 0;
+
+      const newLines = lines.map((line, idx) => {
+        let removeCount = 0;
+        if (line.startsWith("  ")) {
+          removeCount = 2;
+        } else if (line.startsWith(" ") || line.startsWith("\t")) {
+          removeCount = 1;
+        }
+        if (idx === 0) firstLineRemoved = removeCount;
+        removedTotal += removeCount;
+        return line.slice(removeCount);
+      });
+
+      const replaced = newLines.join("\n");
+      const nextVal = val.slice(0, lineStart) + replaced + val.slice(actualEnd);
+      const nextStart = Math.max(lineStart, start - firstLineRemoved);
+      const nextEnd = Math.max(nextStart, end - removedTotal);
+
+      commitNewHistoryEntry(nextVal, nextStart, nextEnd);
+    } else {
+      if (start === end) {
+        const nextVal = val.slice(0, start) + "  " + val.slice(end);
+        const nextPos = start + 2;
+        commitNewHistoryEntry(nextVal, nextPos, nextPos);
+      } else {
+        const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+        const lineEnd = val.indexOf("\n", end);
+        const actualEnd = lineEnd === -1 ? val.length : lineEnd;
+        const lines = val.substring(lineStart, actualEnd).split("\n");
+
+        const newLines = lines.map((line) => "  " + line);
+        const replaced = newLines.join("\n");
+        const nextVal = val.slice(0, lineStart) + replaced + val.slice(actualEnd);
+        const nextStart = start + 2;
+        const nextEnd = end + lines.length * 2;
+
+        commitNewHistoryEntry(nextVal, nextStart, nextEnd);
+      }
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+    const isMod = isMac ? e.metaKey : e.ctrlKey;
+
+    if (isMod && !e.altKey) {
+      const key = e.key.toLowerCase();
+      if (key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        return;
+      }
+      if (key === "y" && !e.shiftKey) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+    }
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      handleTab(e);
+    }
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const nextVal = e.target.value;
+    const nextStart = e.target.selectionStart;
+    const nextEnd = e.target.selectionEnd;
+
+    const currentEntry = historyRef.current[historyIndexRef.current];
+    const prevVal = currentEntry ? currentEntry.value : "";
+    const prevCursor = lastActionRef.current.cursor;
+    const delta = nextVal.length - prevVal.length;
+    const now = Date.now();
+
+    if (delta === 1 && nextStart === prevCursor + 1) {
+      const insertedChar = nextVal[nextStart - 1];
+      const category = getCharCategory(insertedChar);
+
+      const canMerge =
+        lastActionRef.current.type === "typing" &&
+        (lastActionRef.current.category === category || (category === "space" && lastActionRef.current.category === "word")) &&
+        now - lastActionRef.current.timestamp < 1000 &&
+        historyIndexRef.current === historyRef.current.length - 1;
+
+      if (canMerge && currentEntry) {
+        currentEntry.value = nextVal;
+        currentEntry.selectionStart = nextStart;
+        currentEntry.selectionEnd = nextEnd;
+        currentEntry.timestamp = now;
+        lastActionRef.current = {
+          type: "typing",
+          category: category === "space" ? "space" : lastActionRef.current.category,
+          timestamp: now,
+          cursor: nextStart,
+        };
+      } else {
+        truncateRedo();
+        historyRef.current.push({
+          value: nextVal,
+          selectionStart: nextStart,
+          selectionEnd: nextEnd,
+          timestamp: now,
+        });
+        trimHistoryLimit();
+        historyIndexRef.current = historyRef.current.length - 1;
+        lastActionRef.current = {
+          type: "typing",
+          category,
+          timestamp: now,
+          cursor: nextStart,
+        };
+      }
+    } else if (delta === -1 && nextStart === prevCursor - 1) {
+      const deletedChar = prevVal[nextStart];
+      const category = deletedChar ? getCharCategory(deletedChar) : "punct";
+
+      const canMerge =
+        lastActionRef.current.type === "delete" &&
+        lastActionRef.current.category === category &&
+        now - lastActionRef.current.timestamp < 1000 &&
+        historyIndexRef.current === historyRef.current.length - 1;
+
+      if (canMerge && currentEntry) {
+        currentEntry.value = nextVal;
+        currentEntry.selectionStart = nextStart;
+        currentEntry.selectionEnd = nextEnd;
+        currentEntry.timestamp = now;
+        lastActionRef.current = {
+          type: "delete",
+          category,
+          timestamp: now,
+          cursor: nextStart,
+        };
+      } else {
+        truncateRedo();
+        historyRef.current.push({
+          value: nextVal,
+          selectionStart: nextStart,
+          selectionEnd: nextEnd,
+          timestamp: now,
+        });
+        trimHistoryLimit();
+        historyIndexRef.current = historyRef.current.length - 1;
+        lastActionRef.current = {
+          type: "delete",
+          category,
+          timestamp: now,
+          cursor: nextStart,
+        };
+      }
+    } else {
+      truncateRedo();
+      historyRef.current.push({
+        value: nextVal,
+        selectionStart: nextStart,
+        selectionEnd: nextEnd,
+        timestamp: now,
+      });
+      trimHistoryLimit();
+      historyIndexRef.current = historyRef.current.length - 1;
+      lastActionRef.current = {
+        type: "other",
+        timestamp: now,
+        cursor: nextStart,
+      };
+    }
+
+    lastEmittedValue.current = nextVal;
+    onChange(nextVal);
+    syncUndoRedoState();
+  }
+
+  return (
+    <>
+      <Field
+        label="Corpo HTML"
+        description="Use {{body}} no ponto em que o conteúdo enviado pela plataforma deve aparecer. Use {{logo}} para a logo da plataforma, {{primary_color}} para a cor principal e {{platform_name}} para o nome exibido da plataforma."
+      >
+        <textarea
+          ref={textareaRef}
+          className="field min-h-64 font-mono text-sm leading-relaxed"
+          rows={14}
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onBeforeInput={(e: React.FormEvent<HTMLTextAreaElement> & { inputType?: string }) => {
+            if (e.inputType === "historyUndo") {
+              e.preventDefault();
+              undo();
+            } else if (e.inputType === "historyRedo") {
+              e.preventDefault();
+              redo();
+            }
+          }}
+        />
+      </Field>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="btn-secondary min-h-9 px-3 py-2 text-xs"
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => insertTag("{{body}}", true)}
+            disabled={value.includes("{{body}}")}
+          >
+            {"{{body}}"}
+          </button>
+          <button
+            className="btn-secondary min-h-9 px-3 py-2 text-xs"
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => insertTag("{{logo}}")}
+          >
+            {"{{logo}}"}
+          </button>
+          <button
+            className="btn-secondary min-h-9 px-3 py-2 text-xs"
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => insertTag("{{primary_color}}")}
+          >
+            {"{{primary_color}}"}
+          </button>
+          <button
+            className="btn-secondary min-h-9 px-3 py-2 text-xs"
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => insertTag("{{platform_name}}")}
+          >
+            {"{{platform_name}}"}
+          </button>
+          <button
+            className="btn-secondary min-h-9 px-3 py-2 text-xs"
+            type="button"
+            onClick={() => setShowPreview((cur) => !cur)}
+          >
+            <Eye size={14} aria-hidden="true" />
+            {showPreview ? "Ocultar preview" : "Ver preview"}
+          </button>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+          <button
+            className="btn-secondary min-h-9 px-2.5 py-2 text-xs disabled:opacity-35"
+            type="button"
+            title="Desfazer (Ctrl + Z)"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={undo}
+            disabled={!canUndo}
+          >
+            <Undo2 size={13} aria-hidden="true" />
+            <span className="hidden sm:inline">Desfazer</span>
+          </button>
+          <button
+            className="btn-secondary min-h-9 px-2.5 py-2 text-xs disabled:opacity-35"
+            type="button"
+            title="Refazer (Ctrl + Y ou Ctrl + Shift + Z)"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={redo}
+            disabled={!canRedo}
+          >
+            <Redo2 size={13} aria-hidden="true" />
+            <span className="hidden sm:inline">Refazer</span>
+          </button>
+        </div>
+      </div>
+      {showPreview ? (
+        <div className="mt-4 overflow-hidden rounded-lg border border-slate-800 bg-white">
+          <iframe
+            title={`Preview de ${endpointName || "endpoint"}`}
+            sandbox=""
+            className="h-[520px] w-full bg-white"
+            srcDoc={buildEndpointPreviewHtml(value, logoUrl, primaryColor, platformName)}
+          />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function EndpointSection({
   endpoints,
   endpointsOriginal,
@@ -613,7 +1122,6 @@ function EndpointSection({
   onDelete: (endpoint: EmailEndpointDTO, index: number) => void;
 }) {
   const [expandedEndpoints, setExpandedEndpoints] = useState<Record<string, boolean>>({});
-  const [previewEndpoints, setPreviewEndpoints] = useState<Record<string, boolean>>({});
 
   function getEndpointRowKey(endpoint: EmailEndpointDTO, index: number) {
     return endpoint.id ?? `new-${index}`;
@@ -621,29 +1129,6 @@ function EndpointSection({
 
   function toggleEndpoint(rowKey: string) {
     setExpandedEndpoints((current) => (current[rowKey] ? {} : { [rowKey]: true }));
-    setPreviewEndpoints({});
-  }
-
-  function insertBodyTag(index: number, endpoint: EmailEndpointDTO) {
-    const current = endpoint.html_template || "";
-    if (current.includes("{{body}}")) return;
-    onChange(index, { html_template: `${current}${current.trim() ? "\n" : ""}{{body}}` });
-  }
-
-  function insertLogoTag(index: number, endpoint: EmailEndpointDTO) {
-    const current = endpoint.html_template || "";
-    if (current.includes("{{logo}}")) return;
-    onChange(index, { html_template: `${current}${current.trim() ? "\n" : ""}{{logo}}` });
-  }
-
-  function insertPrimaryColorTag(index: number, endpoint: EmailEndpointDTO) {
-    const current = endpoint.html_template || "";
-    if (current.includes("{{primary_color}}")) return;
-    onChange(index, { html_template: `${current}${current.trim() ? "\n" : ""}{{primary_color}}` });
-  }
-
-  function togglePreview(rowKey: string) {
-    setPreviewEndpoints((current) => ({ ...current, [rowKey]: !current[rowKey] }));
   }
 
   return (
@@ -724,58 +1209,14 @@ function EndpointSection({
                       <input className="field" value={endpoint.default_subject ?? ""} onChange={(event) => onChange(index, { default_subject: event.target.value })} />
                     </Field>
                     <div className="md:col-span-2">
-                      <Field label="Corpo HTML" description="Use {{body}} no ponto em que o conteúdo enviado pela plataforma deve aparecer. Use {{logo}} para mostrar a logo configurada da plataforma e {{primary_color}} para usar a cor principal.">
-                        <textarea
-                          className="field min-h-64 font-mono text-sm"
-                          rows={14}
-                          value={endpoint.html_template ?? "{{body}}"}
-                          onChange={(event) => onChange(index, { html_template: event.target.value })}
-                        />
-                      </Field>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <button
-                          className="btn-secondary min-h-9 px-3 py-2 text-xs"
-                          type="button"
-                          onClick={() => insertBodyTag(index, endpoint)}
-                          disabled={(endpoint.html_template ?? "").includes("{{body}}")}
-                        >
-                          {"{{body}}"}
-                        </button>
-                        <button
-                          className="btn-secondary min-h-9 px-3 py-2 text-xs"
-                          type="button"
-                          onClick={() => insertLogoTag(index, endpoint)}
-                          disabled={(endpoint.html_template ?? "").includes("{{logo}}")}
-                        >
-                          {"{{logo}}"}
-                        </button>
-                        <button
-                          className="btn-secondary min-h-9 px-3 py-2 text-xs"
-                          type="button"
-                          onClick={() => insertPrimaryColorTag(index, endpoint)}
-                          disabled={(endpoint.html_template ?? "").includes("{{primary_color}}")}
-                        >
-                          {"{{primary_color}}"}
-                        </button>
-                        <button
-                          className="btn-secondary min-h-9 px-3 py-2 text-xs"
-                          type="button"
-                          onClick={() => togglePreview(rowKey)}
-                        >
-                          <Eye size={14} aria-hidden="true" />
-                          {previewEndpoints[rowKey] ? "Ocultar preview" : "Ver preview"}
-                        </button>
-                      </div>
-                      {previewEndpoints[rowKey] ? (
-                        <div className="mt-4 overflow-hidden rounded-lg border border-slate-800 bg-white">
-                          <iframe
-                            title={`Preview de ${endpoint.name || "endpoint"}`}
-                            sandbox=""
-                            className="h-[520px] w-full bg-white"
-                            srcDoc={buildEndpointPreviewHtml(endpoint.html_template ?? "{{body}}", global.logo_url, global.primary_color)}
-                          />
-                        </div>
-                      ) : null}
+                      <HtmlTemplateEditor
+                        value={endpoint.html_template ?? "{{body}}"}
+                        onChange={(nextHtml) => onChange(index, { html_template: nextHtml })}
+                        logoUrl={global.logo_url}
+                        primaryColor={global.primary_color}
+                        platformName={global.display_name || "Plataforma"}
+                        endpointName={endpoint.name}
+                      />
                     </div>
                   </div>
                 </div>

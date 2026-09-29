@@ -356,8 +356,10 @@ export class EmailService {
 
   private async getTemplateSettings(application: ApplicationRow, setting: ApplicationEmailSettingsRow | null) {
     const global = await this.emails.getGlobalSettings();
+    const platformName = setting?.display_name || application.nome || global.display_name;
     return {
       fromName: setting?.display_name || global.display_name,
+      platformName,
       logoUrl: setting?.logo_url || application.logo_url || global.logo_url,
       primaryColor: setting?.primary_color || global.primary_color,
       footerText: setting?.footer_text || global.footer_text,
@@ -398,6 +400,7 @@ export class EmailService {
         logoUrl: template.logoUrl,
         logoAlt: template.fromName,
         fromName: template.fromName,
+        platformName: template.platformName,
         replyTo: template.replyTo,
         attachments: this.mapAttachments(input.attachments),
       });
