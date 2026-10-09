@@ -68,3 +68,13 @@ npm run start
 2. Aplicações clientes registram suas credenciais (`client_id` e `client_secret`) e URLs de callback autorizadas no Nexus.
 3. Ao logar em qualquer sistema satélite, a sessão é conferida pelo endpoint `/api/v1/sessions/introspect`.
 4. Usuários autorizados para cada aplicação são sincronizados em lote via `/api/v1/applications/authorized-users`.
+
+---
+
+## 📚 Guias de Integração para Agentes e Outros Projetos
+
+Para integrar sistemas satélites ou orientar agentes de IA em outros projetos, consulte a documentação detalhada:
+
+- [Guia de Integração: API de E-mails](docs/integracao-email.md) — Como configurar variáveis de ambiente, autenticar com `client_id`/`client_secret`, disparar e-mails com templates corporativos, anexos e tratar erros.
+- [Guia de Integração: API de Constantes](docs/integracao-constantes.md) — Como consumir constantes públicas e privadas, seguir redirects 307, otimizar com cache ETag (`304 Not Modified`) e gerenciar dados via API.
+
