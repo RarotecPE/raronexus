@@ -412,11 +412,14 @@ export class EmailService {
         subject,
         status: "success",
         providerMessageId: result.messageId,
-        metadata: input.metadata,
+        metadata: result.attempts && result.attempts > 1
+          ? { ...(input.metadata ?? {}), smtp_attempts: result.attempts }
+          : input.metadata,
       });
 
       return { sent: true, message_id: result.messageId ?? null };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Falha ao enviar e-mail.";
       await this.log({
         applicationId: application.id,
         endpoint,
@@ -424,10 +427,13 @@ export class EmailService {
         subject: input.subject || endpointRow.default_subject,
         status: "error",
         errorCode: error instanceof ApiException ? error.code : "EMAIL_SEND_FAILED",
-        errorMessage: error instanceof Error ? error.message : "Falha ao enviar e-mail.",
+        errorMessage,
         metadata: input.metadata,
       });
-      throw error;
+      if (error instanceof ApiException) {
+        throw error;
+      }
+      throw new ApiException(errorMessage, "EMAIL_SEND_FAILED", 502);
     }
   }
 

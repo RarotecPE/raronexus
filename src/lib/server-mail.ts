@@ -279,10 +279,111 @@ async function getEmailLogoAttachment() {
   };
 }
 
+const DEFAULT_SMTP_MAX_ATTEMPTS = 4;
+const DEFAULT_SMTP_BASE_DELAY_MS = 700;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function isTransientSmtpError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const err = error as {
+    code?: string;
+    responseCode?: number;
+    response?: string;
+    message?: string;
+  };
+
+  if (typeof err.responseCode === "number" && err.responseCode >= 400 && err.responseCode < 500) {
+    return true;
+  }
+
+  const transientCodes = new Set([
+    "ETIMEDOUT",
+    "ECONNRESET",
+    "ECONNREFUSED",
+    "ESOCKET",
+    "ECONNECTION",
+    "EAI_AGAIN",
+    "ENOTFOUND",
+    "EPIPE",
+  ]);
+  if (err.code && transientCodes.has(err.code.toUpperCase())) {
+    return true;
+  }
+
+  const combinedText = `${err.message ?? ""} ${err.response ?? ""}`.toLowerCase();
+  if (
+    /\b4\d{2}\b/.test(combinedText) ||
+    combinedText.includes("queue file write error") ||
+    combinedText.includes("try again") ||
+    combinedText.includes("temporary") ||
+    combinedText.includes("temperror") ||
+    combinedText.includes("timeout") ||
+    combinedText.includes("timed out") ||
+    combinedText.includes("connection closed") ||
+    combinedText.includes("socket close")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export async function sendMailWithRetry(
+  mailOptions: Mail.Options,
+  options?: {
+    maxAttempts?: number;
+    baseDelayMs?: number;
+    sendFn?: (mail: Mail.Options) => Promise<{ messageId?: string }>;
+  },
+) {
+  const maxAttempts = options?.maxAttempts ?? DEFAULT_SMTP_MAX_ATTEMPTS;
+  const baseDelayMs = options?.baseDelayMs ?? DEFAULT_SMTP_BASE_DELAY_MS;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let transporter: ReturnType<typeof getTransporter> | null = null;
+    try {
+      if (options?.sendFn) {
+        const info = await options.sendFn(mailOptions);
+        return { messageId: info.messageId, attempts: attempt };
+      }
+      transporter = getTransporter();
+      const info = await transporter.sendMail(mailOptions);
+      transporter.close?.();
+      return { messageId: info.messageId, attempts: attempt };
+    } catch (error) {
+      lastError = error;
+      transporter?.close?.();
+
+      const shouldRetry = attempt < maxAttempts && isTransientSmtpError(error);
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      const jitter = baseDelayMs > 0 ? Math.floor(Math.random() * 150) : 0;
+      const delay = baseDelayMs * Math.pow(2, attempt - 1) + jitter;
+      console.warn(
+        `[SMTP Retry] Tentativa ${attempt}/${maxAttempts} falhou (${
+          error instanceof Error ? error.message : String(error)
+        }). Tentando novamente em ${delay}ms...`,
+      );
+      if (delay > 0) {
+        await sleep(delay);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 export async function sendStandardEmail(input: StandardEmailInput) {
   const fromEmail = requireEnv("SMTP_FROM_EMAIL");
   const fromName = input.fromName || process.env.SMTP_FROM_NAME?.trim() || "RaroNexus";
-  const info = await getTransporter().sendMail({
+  const info = await sendMailWithRetry({
     from: `"${fromName}" <${fromEmail}>`,
     to: input.to,
     subject: input.subject,
@@ -291,7 +392,7 @@ export async function sendStandardEmail(input: StandardEmailInput) {
     attachments: input.attachments ?? [],
   });
 
-  return { messageId: info.messageId };
+  return { messageId: info.messageId, attempts: info.attempts };
 }
 
 export async function sendTemplatedEmail(input: TemplatedEmailInput) {
@@ -310,7 +411,7 @@ export async function sendTemplatedEmail(input: TemplatedEmailInput) {
     .replaceAll("{{platform-name}}", escapeHtml(platformName))
     .replaceAll("{{platform_name}}", escapeHtml(platformName));
 
-  const info = await getTransporter().sendMail({
+  const info = await sendMailWithRetry({
     from: `"${fromName}" <${fromEmail}>`,
     to: input.to,
     subject: input.subject,
@@ -319,7 +420,7 @@ export async function sendTemplatedEmail(input: TemplatedEmailInput) {
     attachments: input.attachments ?? [],
   });
 
-  return { messageId: info.messageId };
+  return { messageId: info.messageId, attempts: info.attempts };
 }
 
 export async function sendUserInviteEmail(input: {
