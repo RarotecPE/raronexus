@@ -32,10 +32,25 @@ type DraftUser = {
   avatar_url: string;
   ativo: boolean;
   is_admin: boolean;
+  expires_in_hours: number;
+  expiration_preset: string;
 };
 
-type ModalMode = "edit" | "platforms" | null;
+type ModalMode = "edit" | "platforms" | "resend" | null;
 type AlertState = { message: string; type: SystemAlertType } | null;
+
+const INVITE_EXPIRATION_PRESETS = [
+  { value: "1", label: "1 hora" },
+  { value: "6", label: "6 horas" },
+  { value: "12", label: "12 horas" },
+  { value: "24", label: "24 horas (1 dia)" },
+  { value: "48", label: "48 horas (2 dias — padrão)" },
+  { value: "72", label: "72 horas (3 dias)" },
+  { value: "168", label: "168 horas (7 dias)" },
+  { value: "336", label: "336 horas (14 dias)" },
+  { value: "720", label: "720 horas (30 dias)" },
+  { value: "custom", label: "Personalizado (em horas)" },
+] as const;
 
 const emptyDraft: DraftUser = {
   nome: "",
@@ -45,6 +60,8 @@ const emptyDraft: DraftUser = {
   avatar_url: "",
   ativo: true,
   is_admin: false,
+  expires_in_hours: 48,
+  expiration_preset: "48",
 };
 
 function editableProfiles(platform: UserApplicationAccessDTO) {
@@ -60,6 +77,20 @@ function getStatusLabel(user: UserResponseDTO | UserListItemDTO) {
   const status = getUserStatus(user);
   if (status === "pendente") return "Pendente";
   return status === "ativo" ? "Ativo" : "Inativo";
+}
+
+function formatInviteExpiresAt(expiresAt: string, inviteStatus?: "pending" | "expired") {
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) return null;
+  const formatted = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+  const isExpired = inviteStatus === "expired" || date.getTime() <= Date.now();
+  return `${isExpired ? "Expirou em" : "Expira em"} ${formatted}`;
 }
 
 function getUserDisplayName(user: UserResponseDTO) {
@@ -154,12 +185,73 @@ function FieldGroup({
   );
 }
 
+function InviteExpirationFields({
+  preset,
+  hours,
+  onChange,
+}: {
+  preset: string;
+  hours: number;
+  onChange: (next: { expiration_preset: string; expires_in_hours: number }) => void;
+}) {
+  return (
+    <div className={preset === "custom" ? "grid gap-3 md:grid-cols-2" : undefined}>
+      <FieldGroup
+        label="Tempo de expiração do convite"
+        description="Prazo para o convidado concluir o cadastro pelo link enviado por e-mail."
+      >
+        <select
+          className="field"
+          value={preset}
+          onChange={(event) => {
+            const nextPreset = event.target.value;
+            onChange({
+              expiration_preset: nextPreset,
+              expires_in_hours: nextPreset === "custom" ? hours : Number(nextPreset),
+            });
+          }}
+        >
+          {INVITE_EXPIRATION_PRESETS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </FieldGroup>
+      {preset === "custom" ? (
+        <FieldGroup
+          label="Horas para expirar"
+          description="Informe entre 1 e 720 horas (até 30 dias)."
+        >
+          <input
+            className="field"
+            type="number"
+            min={1}
+            max={720}
+            step={1}
+            value={hours}
+            onChange={(event) => {
+              const parsed = Number.parseInt(event.target.value, 10);
+              onChange({
+                expiration_preset: preset,
+                expires_in_hours: Number.isNaN(parsed) ? 1 : Math.min(720, Math.max(1, parsed)),
+              });
+            }}
+            required
+          />
+        </FieldGroup>
+      ) : null}
+    </div>
+  );
+}
+
 export function UsersAdmin() {
   const [me, setMe] = useState<UserResponseDTO | null>(null);
   const [users, setUsers] = useState<UserListItemDTO[]>([]);
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<DraftUser>(emptyDraft);
   const [editing, setEditing] = useState<UserResponseDTO | null>(null);
+  const [resendingTarget, setResendingTarget] = useState<UserListItemDTO | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [alert, setAlert] = useState<AlertState>(null);
   const [loading, setLoading] = useState(true);
@@ -248,6 +340,7 @@ export function UsersAdmin() {
   function closeModal() {
     setModalMode(null);
     setEditing(null);
+    setResendingTarget(null);
     setDraft(emptyDraft);
     setAvatarFile(null);
     setAvatarCropFile(null);
@@ -262,6 +355,7 @@ export function UsersAdmin() {
 
   function openCreateModal() {
     setEditing(null);
+    setResendingTarget(null);
     setDraft(emptyDraft);
     setAvatarFile(null);
     setAvatarCropFile(null);
@@ -271,6 +365,7 @@ export function UsersAdmin() {
 
   function openEditModal(user: UserResponseDTO) {
     setEditing(user);
+    setResendingTarget(null);
     setDraft({
       nome: user.nome ?? "",
       email: user.email,
@@ -279,6 +374,8 @@ export function UsersAdmin() {
       avatar_url: user.avatar_url ?? "",
       ativo: user.ativo,
       is_admin: user.is_admin ?? false,
+      expires_in_hours: 48,
+      expiration_preset: "48",
     });
     setAvatarFile(null);
     setAvatarCropFile(null);
@@ -288,6 +385,7 @@ export function UsersAdmin() {
 
   async function openPlatformsModal(user: UserResponseDTO) {
     setEditing(user);
+    setResendingTarget(null);
     setPlatforms([]);
     setPlatformDraft({});
     setPlatformSearch("");
@@ -341,6 +439,7 @@ export function UsersAdmin() {
           body: JSON.stringify({
             email: draft.email,
             is_admin: draft.is_admin,
+            expires_in_hours: draft.expires_in_hours,
           }),
         });
 
@@ -382,16 +481,38 @@ export function UsersAdmin() {
     }
   }
 
-  async function resendInvite(user: UserListItemDTO) {
+  function openResendModal(user: UserListItemDTO) {
     if (!isInvite(user)) return;
     setAlert(null);
-    setResendingInviteId(user.id);
+    setEditing(null);
+    setResendingTarget(user);
+    setDraft({
+      ...emptyDraft,
+      email: user.email,
+      expires_in_hours: 48,
+      expiration_preset: "48",
+    });
+    setModalMode("resend");
+  }
+
+  async function submitResendInvite(event: FormEvent) {
+    event.preventDefault();
+    if (!resendingTarget || !isInvite(resendingTarget)) return;
+    setAlert(null);
+    setSaving(true);
+    setResendingInviteId(resendingTarget.id);
     try {
-      await apiFetch(`/api/v1/user-invites/${user.id}/resend`, { method: "POST" });
+      await apiFetch(`/api/v1/user-invites/${resendingTarget.id}/resend`, {
+        method: "POST",
+        body: JSON.stringify({
+          expires_in_hours: draft.expires_in_hours,
+        }),
+      });
       setAlert({
         message: "E-mail de convite reenviado.",
         type: "success",
       });
+      closeModal();
       await loadUsers();
     } catch (error) {
       setAlert({
@@ -399,6 +520,7 @@ export function UsersAdmin() {
         type: "error",
       });
     } finally {
+      setSaving(false);
       setResendingInviteId(null);
     }
   }
@@ -632,9 +754,16 @@ export function UsersAdmin() {
                     </td>
                     <td className="px-5 py-4 text-slate-300">{user.email}</td>
                     <td className="px-5 py-4">
-                      <span className={getStatusClassName(user)}>
-                        {getStatusLabel(user)}
-                      </span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className={getStatusClassName(user)}>
+                          {getStatusLabel(user)}
+                        </span>
+                        {isInvite(user) && user.expires_at ? (
+                          <span className="text-xs text-slate-400">
+                            {formatInviteExpiresAt(user.expires_at, user.invite_status)}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-5 py-4 text-slate-300">{user.is_admin ? "Sim" : "Nao"}</td>
                     <td className="px-5 py-4">
@@ -645,7 +774,7 @@ export function UsersAdmin() {
                               <button
                                 className="flex min-h-9 items-center justify-center rounded-md px-2 py-1 text-slate-400 transition hover:bg-slate-800 hover:text-cyan-200 disabled:opacity-50"
                                 type="button"
-                                onClick={() => void resendInvite(user)}
+                                onClick={() => openResendModal(user)}
                                 disabled={resendingInviteId === user.id}
                                 title="Reenviar e-mail de confirmacao"
                               >
@@ -774,9 +903,20 @@ export function UsersAdmin() {
                 </FieldGroup>
               </>
             ) : (
-              <FieldGroup label="E-mail">
-                <input className="field" placeholder="maria@empresa.com" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} required />
-              </FieldGroup>
+              <div className="space-y-4">
+                <FieldGroup label="E-mail">
+                  <input className="field" placeholder="maria@empresa.com" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} required />
+                </FieldGroup>
+                <InviteExpirationFields
+                  preset={draft.expiration_preset}
+                  hours={draft.expires_in_hours}
+                  onChange={({ expiration_preset, expires_in_hours }) => setDraft({
+                    ...draft,
+                    expiration_preset,
+                    expires_in_hours,
+                  })}
+                />
+              </div>
             )}
             <div className="flex flex-wrap gap-4">
               {editing ? (
@@ -791,8 +931,42 @@ export function UsersAdmin() {
                 Administrador RaroNexus
               </label>
             </div>
+          </form>
+        </Modal>
+      ) : null}
 
-
+      {modalMode === "resend" && resendingTarget ? (
+        <Modal
+          title="Reenviar convite"
+          description={`Defina o novo período de expiração para o convite de ${resendingTarget.email}.`}
+          icon={<MailPlus size={19} aria-hidden="true" />}
+          maxWidth="max-w-xl"
+          onClose={closeModal}
+          footer={(
+            <>
+              <button className="btn-primary" disabled={saving} type="submit" form="invite-resend-form">
+                <MailPlus size={17} aria-hidden="true" />
+                {saving ? "Reenviando..." : "Reenviar convite"}
+              </button>
+              <button className="btn-secondary" type="button" onClick={closeModal}>
+                Cancelar
+              </button>
+            </>
+          )}
+        >
+          <form id="invite-resend-form" className="space-y-4" onSubmit={submitResendInvite}>
+            <FieldGroup label="E-mail do convidado">
+              <input className="field" type="email" value={resendingTarget.email} disabled />
+            </FieldGroup>
+            <InviteExpirationFields
+              preset={draft.expiration_preset}
+              hours={draft.expires_in_hours}
+              onChange={({ expiration_preset, expires_in_hours }) => setDraft({
+                ...draft,
+                expiration_preset,
+                expires_in_hours,
+              })}
+            />
           </form>
         </Modal>
       ) : null}

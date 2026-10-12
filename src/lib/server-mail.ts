@@ -2,6 +2,7 @@ import "server-only";
 import nodemailer from "nodemailer";
 import type Mail from "nodemailer/lib/mailer";
 import { ApiException } from "./api/errors";
+import { formatInviteExpirationLabel } from "./api/validators/user";
 import { createAdminSupabaseClient } from "./supabase/server";
 
 export type StandardEmailInput = {
@@ -427,10 +428,12 @@ export async function sendUserInviteEmail(input: {
   email: string;
   token: string;
   requestUrl: string;
+  expiresInHours?: number;
 }) {
   const inviteUrl = `${getAppBaseUrl(input.requestUrl)}/set-password?token=${encodeURIComponent(input.token)}`;
   const logoAttachment = await getEmailLogoAttachment();
   const logoSrc = logoAttachment ? "cid:raronexus-logo" : getEmailLogoUrl();
+  const expirationLabel = formatInviteExpirationLabel(input.expiresInHours ?? 48);
 
   await sendStandardEmail({
     to: input.email,
@@ -445,7 +448,7 @@ export async function sendUserInviteEmail(input: {
     logoUrl: logoSrc,
     logoAlt: "RaroNexus",
     primaryColor: "#0f766e",
-    footerText: "Este convite expira em 48 horas. Se você não esperava este convite, ignore este e-mail.",
+    footerText: `Este convite expira em ${expirationLabel}. Se você não esperava este convite, ignore este e-mail.`,
     attachments: logoAttachment ? [logoAttachment] : [],
   });
 }

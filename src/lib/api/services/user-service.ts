@@ -10,13 +10,14 @@ import { UserRepository } from "../repositories/user-repository";
 import { ApplicationService } from "./application-service";
 import type { AuthenticatedContext } from "../types";
 import type { z } from "zod";
-import type {
-  completeInviteRegistrationSchema,
-  completeRegistrationSchema,
-  createUserSchema,
-  inviteTokenSchema,
-  profileSchema,
-  updateUserSchema,
+import {
+  DEFAULT_INVITE_EXPIRES_IN_HOURS,
+  type completeInviteRegistrationSchema,
+  type completeRegistrationSchema,
+  type createUserSchema,
+  type inviteTokenSchema,
+  type profileSchema,
+  type updateUserSchema,
 } from "../validators/user";
 
 function isUniqueCpfError(error: unknown) {
@@ -46,8 +47,8 @@ export class UserService {
     return createHash("sha256").update(token).digest("hex");
   }
 
-  private getInviteExpiresAt() {
-    return new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  private getInviteExpiresAt(hours = DEFAULT_INVITE_EXPIRES_IN_HOURS) {
+    return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
   }
 
   private ensureInviteUsable(invite: { expires_at: string; status: string; consumed_at?: string | null }) {
@@ -139,6 +140,7 @@ export class UserService {
       throw new ApiException("Ja existe um usuario cadastrado com este e-mail.", "EMAIL_ALREADY_EXISTS", 409);
     }
 
+    const expiresInHours = input.expires_in_hours ?? DEFAULT_INVITE_EXPIRES_IN_HOURS;
     const token = this.createInviteToken();
     const inviteInput = {
       email,
@@ -146,7 +148,7 @@ export class UserService {
       is_admin: input.is_admin ?? false,
       status: "pending" as const,
       invited_by: context.profile?.id ?? null,
-      expires_at: this.getInviteExpiresAt(),
+      expires_at: this.getInviteExpiresAt(expiresInHours),
       consumed_at: null,
       created_user_id: null,
     };
@@ -156,7 +158,7 @@ export class UserService {
       ? await this.invites.update(existingInvite.id, inviteInput)
       : await this.invites.create(inviteInput);
 
-    await sendUserInviteEmail({ email, token, requestUrl });
+    await sendUserInviteEmail({ email, token, requestUrl, expiresInHours });
 
     await this.audit.log({
       user_id: context.profile?.id ?? null,
@@ -197,7 +199,12 @@ export class UserService {
     }
   }
 
-  async resendInvite(context: AuthenticatedContext, id: string, requestUrl: string) {
+  async resendInvite(
+    context: AuthenticatedContext,
+    id: string,
+    requestUrl: string,
+    expiresInHours = DEFAULT_INVITE_EXPIRES_IN_HOURS,
+  ) {
     this.requireAdmin(context);
     const invite = await this.invites.findById(id);
     if (!invite || invite.status !== "pending" || invite.consumed_at) {
@@ -207,12 +214,12 @@ export class UserService {
     const token = this.createInviteToken();
     const updated = await this.invites.update(invite.id, {
       token_hash: this.hashInviteToken(token),
-      expires_at: this.getInviteExpiresAt(),
+      expires_at: this.getInviteExpiresAt(expiresInHours),
       status: "pending",
       consumed_at: null,
     });
 
-    await sendUserInviteEmail({ email: updated.email, token, requestUrl });
+    await sendUserInviteEmail({ email: updated.email, token, requestUrl, expiresInHours });
 
     await this.audit.log({
       user_id: context.profile?.id ?? null,

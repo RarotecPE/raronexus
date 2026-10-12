@@ -15,9 +15,34 @@ const cpfSchema = z
   .max(14)
   .regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "Informe um CPF valido.");
 
+export const DEFAULT_INVITE_EXPIRES_IN_HOURS = 48;
+export const MIN_INVITE_EXPIRES_IN_HOURS = 1;
+export const MAX_INVITE_EXPIRES_IN_HOURS = 720;
+
+export function formatInviteExpirationLabel(hours: number) {
+  const safeHours = Number.isFinite(hours) && hours >= 1 ? Math.floor(hours) : DEFAULT_INVITE_EXPIRES_IN_HOURS;
+  if (safeHours === 1) return "1 hora";
+  if (safeHours >= 72 && safeHours % 24 === 0) {
+    const days = safeHours / 24;
+    return `${days} dias (${safeHours} horas)`;
+  }
+  return `${safeHours} horas`;
+}
+
+export const inviteExpirationHoursSchema = z.coerce
+  .number()
+  .int("O tempo de expiracao deve ser um numero inteiro de horas.")
+  .min(MIN_INVITE_EXPIRES_IN_HOURS, "O tempo minimo de expiracao e de 1 hora.")
+  .max(MAX_INVITE_EXPIRES_IN_HOURS, "O tempo maximo de expiracao e de 720 horas (30 dias).");
+
 export const inviteUserSchema = z.object({
   email: z.email().max(255),
   is_admin: z.boolean().optional(),
+  expires_in_hours: inviteExpirationHoursSchema.optional(),
+});
+
+export const resendInviteSchema = z.object({
+  expires_in_hours: inviteExpirationHoursSchema.optional(),
 });
 
 export const createUserSchema = inviteUserSchema;
