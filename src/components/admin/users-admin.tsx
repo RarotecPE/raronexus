@@ -22,6 +22,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { uploadAvatar } from "@/lib/avatar-upload";
 import { apiFetch } from "@/lib/api/client-fetch";
 import { formatCpf, formatPhone } from "@/lib/formatters";
+import { sortUserListItems } from "@/lib/api/dto";
 import type { UserApplicationAccessDTO, UserListItemDTO, UserResponseDTO } from "@/lib/api/types";
 
 type DraftUser = {
@@ -270,6 +271,7 @@ export function UsersAdmin() {
   const didRunInitialSearch = useRef(false);
 
   const isAdmin = Boolean(me?.is_admin);
+  const sortedUsers = useMemo(() => sortUserListItems(users), [users]);
   const activeCount = useMemo(
     () => users.filter((user) => getUserStatus(user) === "ativo").length,
     [users],
@@ -737,14 +739,14 @@ export function UsersAdmin() {
                     Carregando usuários...
                   </td>
                 </tr>
-              ) : users.length === 0 ? (
+              ) : sortedUsers.length === 0 ? (
                 <tr>
                   <td className="px-5 py-6 text-slate-300" colSpan={5}>
                     Nenhum usuário encontrado.
                   </td>
                 </tr>
               ) : (
-                users.map((user) => (
+                sortedUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-900/70">
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">

@@ -83,6 +83,38 @@ export function toUserInviteListItemDTO(invite: UserInviteRow): UserListItemDTO 
   };
 }
 
+export function getUserItemStatusRank(item: Pick<UserListItemDTO, "record_type" | "invite_status" | "cadastro_status" | "ativo">): number {
+  if (item.record_type === "invite" && item.invite_status === "expired") {
+    return 1;
+  }
+  const status = item.cadastro_status ?? (item.ativo ? "ativo" : "inativo");
+  if (status === "pendente") return 0;
+  if (item.record_type === "invite") return 1;
+  return 2;
+}
+
+export function compareUserListItems(a: UserListItemDTO, b: UserListItemDTO): number {
+  const rankA = getUserItemStatusRank(a);
+  const rankB = getUserItemStatusRank(b);
+  if (rankA !== rankB) {
+    return rankA - rankB;
+  }
+
+  const nameA = a.nome?.trim() || "Cadastro pendente";
+  const nameB = b.nome?.trim() || "Cadastro pendente";
+  const nameDiff = nameA.localeCompare(nameB, "pt-BR", { sensitivity: "base" });
+  if (nameDiff !== 0) return nameDiff;
+
+  const emailDiff = (a.email ?? "").localeCompare(b.email ?? "", "pt-BR", { sensitivity: "base" });
+  if (emailDiff !== 0) return emailDiff;
+
+  return (a.id ?? "").localeCompare(b.id ?? "");
+}
+
+export function sortUserListItems(items: UserListItemDTO[]): UserListItemDTO[] {
+  return [...items].sort(compareUserListItems);
+}
+
 export function toPublicInviteDTO(invite: UserInviteRow): PublicInviteDTO {
   return {
     id: invite.id,

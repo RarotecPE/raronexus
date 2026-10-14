@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { toPublicUserDTO, toUserDTO } from "@/lib/api/dto";
+import { sortUserListItems, toPublicUserDTO, toUserDTO } from "@/lib/api/dto";
 import type { UserRow } from "@/lib/api/types";
 
 const row: UserRow = {
@@ -44,5 +44,92 @@ describe("user DTOs", () => {
       email: row.email,
       ativo: row.ativo,
     });
+  });
+
+  it("sorts users with pending first, then ascending by name and email", () => {
+    const userActiveB = {
+      id: "u-2",
+      nome: "Bruno Costa",
+      email: "bruno@empresa.com",
+      ativo: true,
+      cadastro_status: "ativo" as const,
+      record_type: "user" as const,
+    };
+    const userActiveA = {
+      id: "u-1",
+      nome: "Ana Santos",
+      email: "ana@empresa.com",
+      ativo: true,
+      cadastro_status: "ativo" as const,
+      record_type: "user" as const,
+    };
+    const userPendingC = {
+      id: "u-3",
+      nome: "Carlos Lima",
+      email: "carlos@empresa.com",
+      ativo: true,
+      cadastro_status: "pendente" as const,
+      record_type: "user" as const,
+    };
+    const invitePendingA = {
+      id: "i-1",
+      nome: null,
+      email: "alberto.convidado@empresa.com",
+      ativo: true,
+      cadastro_status: "pendente" as const,
+      record_type: "invite" as const,
+      invite_status: "pending" as const,
+    };
+    const invitePendingZ = {
+      id: "i-2",
+      nome: null,
+      email: "ze.convidado@empresa.com",
+      ativo: true,
+      cadastro_status: "pendente" as const,
+      record_type: "invite" as const,
+      invite_status: "pending" as const,
+    };
+    const inviteExpired = {
+      id: "i-3",
+      nome: null,
+      email: "expirado@empresa.com",
+      ativo: true,
+      cadastro_status: "pendente" as const,
+      record_type: "invite" as const,
+      invite_status: "expired" as const,
+    };
+
+    const sorted = sortUserListItems([
+      userActiveB,
+      userActiveA,
+      userPendingC,
+      invitePendingZ,
+      invitePendingA,
+      inviteExpired,
+    ]);
+
+    assert.deepEqual(
+      sorted.map((item) => ({
+        id: item.id,
+        nome: item.nome,
+        email: item.email,
+        status: item.record_type === "invite" && item.invite_status === "expired" ? "Expirado" : item.cadastro_status,
+      })),
+      [
+        // Rank 0: "pendente" first!
+        // "Cadastro pendente" (starts with C) vs "Carlos Lima" (starts with C) -> "Cadastro..." < "Carlos..."
+        // Between the two invites, alberto@ comes before ze@
+        { id: "i-1", nome: null, email: "alberto.convidado@empresa.com", status: "pendente" },
+        { id: "i-2", nome: null, email: "ze.convidado@empresa.com", status: "pendente" },
+        { id: "u-3", nome: "Carlos Lima", email: "carlos@empresa.com", status: "pendente" },
+
+        // Rank 1: Expired invite
+        { id: "i-3", nome: null, email: "expirado@empresa.com", status: "Expirado" },
+
+        // Rank 2: Active users sorted by name ascending (Ana Santos, then Bruno Costa)
+        { id: "u-1", nome: "Ana Santos", email: "ana@empresa.com", status: "ativo" },
+        { id: "u-2", nome: "Bruno Costa", email: "bruno@empresa.com", status: "ativo" },
+      ],
+    );
   });
 });

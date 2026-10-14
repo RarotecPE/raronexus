@@ -2,7 +2,15 @@ import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { randomBytes, createHash } from "crypto";
 import { sendUserInviteEmail } from "@/lib/server-mail";
 import { sanitizeFileName } from "@/lib/formatters";
-import { toPublicInviteDTO, toPublicUserDTO, toUserDTO, toUserInviteDTO, toUserInviteListItemDTO, toUserListItemDTO } from "../dto";
+import {
+  sortUserListItems,
+  toPublicInviteDTO,
+  toPublicUserDTO,
+  toUserDTO,
+  toUserInviteDTO,
+  toUserInviteListItemDTO,
+  toUserListItemDTO,
+} from "../dto";
 import { ApiException } from "../errors";
 import { AuditRepository } from "../repositories/audit-repository";
 import { UserInviteRepository } from "../repositories/user-invite-repository";
@@ -115,9 +123,7 @@ export class UserService {
       users.map(async (user) => toUserListItemDTO(user, await this.getCadastroStatus(user))),
     );
     const inviteItems = invites.map(toUserInviteListItemDTO);
-    return [...inviteItems, ...userItems].sort((a, b) => (
-      new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
-    ));
+    return sortUserListItems([...inviteItems, ...userItems]);
   }
 
   async find(context: AuthenticatedContext, id: string) {
