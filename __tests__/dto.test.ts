@@ -46,7 +46,7 @@ describe("user DTOs", () => {
     });
   });
 
-  it("sorts users with completed registrations first, then pending and expired at the end", () => {
+  it("sorts users with pending first, then ascending by name and email", () => {
     const userActiveB = {
       id: "u-2",
       nome: "Bruno Costa",
@@ -116,19 +116,19 @@ describe("user DTOs", () => {
         status: item.record_type === "invite" && item.invite_status === "expired" ? "Expirado" : item.cadastro_status,
       })),
       [
-        // Rank 0: Completed/Active users sorted by name ascending (Ana Santos, then Bruno Costa)
-        { id: "u-1", nome: "Ana Santos", email: "ana@empresa.com", status: "ativo" },
-        { id: "u-2", nome: "Bruno Costa", email: "bruno@empresa.com", status: "ativo" },
-
-        // Rank 1: Pending registrations
+        // Rank 0: "pendente" first!
         // "Cadastro pendente" (starts with C) vs "Carlos Lima" (starts with C) -> "Cadastro..." < "Carlos..."
         // Between the two invites, alberto@ comes before ze@
         { id: "i-1", nome: null, email: "alberto.convidado@empresa.com", status: "pendente" },
         { id: "i-2", nome: null, email: "ze.convidado@empresa.com", status: "pendente" },
         { id: "u-3", nome: "Carlos Lima", email: "carlos@empresa.com", status: "pendente" },
 
-        // Rank 2: Expired invite
+        // Rank 1: Expired invite
         { id: "i-3", nome: null, email: "expirado@empresa.com", status: "Expirado" },
+
+        // Rank 2: Active users sorted by name ascending (Ana Santos, then Bruno Costa)
+        { id: "u-1", nome: "Ana Santos", email: "ana@empresa.com", status: "ativo" },
+        { id: "u-2", nome: "Bruno Costa", email: "bruno@empresa.com", status: "ativo" },
       ],
     );
   });

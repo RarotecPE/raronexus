@@ -84,14 +84,13 @@ export function toUserInviteListItemDTO(invite: UserInviteRow): UserListItemDTO 
 }
 
 export function getUserItemStatusRank(item: Pick<UserListItemDTO, "record_type" | "invite_status" | "cadastro_status" | "ativo">): number {
-  const status = item.cadastro_status ?? (item.ativo ? "ativo" : "inativo");
-  if (status !== "pendente" && item.record_type !== "invite") {
-    return 0;
-  }
   if (item.record_type === "invite" && item.invite_status === "expired") {
-    return 2;
+    return 1;
   }
-  return 1;
+  const status = item.cadastro_status ?? (item.ativo ? "ativo" : "inativo");
+  if (status === "pendente") return 0;
+  if (item.record_type === "invite") return 1;
+  return 2;
 }
 
 export function compareUserListItems(a: UserListItemDTO, b: UserListItemDTO): number {
