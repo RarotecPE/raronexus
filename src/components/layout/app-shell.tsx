@@ -11,6 +11,7 @@ import {
   Home,
   LogOut,
   Mail,
+  ShieldCheck,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const navigationItems = [
 const apiNavigationItems = [
   { label: "E-mails", href: "/admin/emails/global", icon: Mail },
   { label: "Constantes", href: "/admin/constants", icon: Braces },
+  { label: "Auditoria", href: "/admin/audit", icon: ShieldCheck },
 ];
 
 export function AppShell({

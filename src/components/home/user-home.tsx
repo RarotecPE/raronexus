@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AppWindow, Braces, CheckCircle2, Mail, UserRound, UsersRound } from "lucide-react";
+import { AppWindow, Braces, CheckCircle2, Mail, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -42,6 +42,13 @@ const actions = [
     description: "Acesse a central de constantes das APIs.",
     href: "/admin/constants",
     icon: Braces,
+    adminOnly: true,
+  },
+  {
+    title: "Auditoria",
+    description: "Consulte a trilha de auditoria e segurança unificada.",
+    href: "/admin/audit",
+    icon: ShieldCheck,
     adminOnly: true,
   },
 ];
