@@ -35,6 +35,31 @@ function runInBackground(fn: () => Promise<void>): void {
 }
 
 /**
+ * Compara dois objetos e extrai a lista de campos que foram modificados.
+ */
+export function computeChanges(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>
+): Array<{ field: string; before: unknown; after: unknown }> {
+  const changes: Array<{ field: string; before: unknown; after: unknown }> = [];
+  const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+
+  for (const field of keys) {
+    const valBefore = before?.[field];
+    const valAfter = after?.[field];
+    if (JSON.stringify(valBefore) !== JSON.stringify(valAfter)) {
+      changes.push({
+        field,
+        before: valBefore,
+        after: valAfter,
+      });
+    }
+  }
+
+  return changes;
+}
+
+/**
  * Monta e higieniza o envelope canônico de auditoria.
  */
 export function buildAuditEnvelope(options: LogAuditOptions): AuditEnvelope {
@@ -43,7 +68,20 @@ export function buildAuditEnvelope(options: LogAuditOptions): AuditEnvelope {
 
   // Sanitização LGPD
   const sanitizedDetails = sanitizeData(options.details || {});
-  const sanitizedChanges = options.changes ? sanitizeData(options.changes) : undefined;
+
+  // Sanitização e cálculo de Diff (Antes vs Depois)
+  const sanitizedDiff = options.diff
+    ? {
+        before: sanitizeData(options.diff.before) as Record<string, unknown>,
+        after: sanitizeData(options.diff.after) as Record<string, unknown>,
+      }
+    : undefined;
+
+  let changes = options.changes;
+  if (!changes && sanitizedDiff) {
+    changes = computeChanges(sanitizedDiff.before, sanitizedDiff.after);
+  }
+  const sanitizedChanges = changes ? sanitizeData(changes) : undefined;
 
   const targets = (options.targets || []).map(t => ({
     type: t.type,
@@ -75,6 +113,7 @@ export function buildAuditEnvelope(options: LogAuditOptions): AuditEnvelope {
       sessionId: options.context?.sessionId ?? null,
     },
     changes: sanitizedChanges,
+    diff: sanitizedDiff,
     details: sanitizedDetails as Record<string, unknown>,
     prevHash: lastHashBySystem[options.system] || undefined,
   };

@@ -25,6 +25,7 @@ export async function PUT(request: Request, { params }: Params) {
     const { id } = await params;
     const context = await new AuthService().authenticate(request);
     const input = updateUserSchema.parse(await request.json());
+    const existing = await new UserService().find(context, id);
     const updated = await new UserService().update(context, id, input);
 
     auditClient.log({
@@ -48,6 +49,10 @@ export async function PUT(request: Request, { params }: Params) {
         },
       ],
       context: getRequestContext(request),
+      diff: {
+        before: existing as unknown as Record<string, unknown>,
+        after: updated as unknown as Record<string, unknown>,
+      },
       details: {
         changes: input,
       },

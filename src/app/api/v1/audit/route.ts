@@ -4,7 +4,13 @@ import { ok } from "@/lib/api/response";
 import { AuthService } from "@/lib/api/services/auth-service";
 import { ApiException } from "@/lib/api/errors";
 import { getAuditCollection } from "@/lib/audit/mongo";
-import { getAuditRedisClient, AUDIT_STREAM_KEY } from "@/lib/audit/queue";
+import {
+  getAuditRedisClient,
+  AUDIT_STREAM_KEY,
+  readAuditBatchFromQueue,
+  ackAuditMessages,
+  pushToDLQ,
+} from "@/lib/audit/queue";
 import { tokenize } from "@/lib/audit/tokens";
 import type { AuditEnvelope } from "@/lib/audit/types";
 import type { Filter } from "mongodb";
@@ -18,6 +24,50 @@ export async function GET(request: Request) {
       throw new ApiException("Acesso restrito a administradores.", "FORBIDDEN", 403);
     }
 
+    const collection = await getAuditCollection();
+
+    // Drenagem automática transparente: toda vez que o usuário consulta/atualiza
+    try {
+      const BATCH_SIZE = 100;
+      const batch = await readAuditBatchFromQueue(BATCH_SIZE);
+
+      if (batch.length > 0) {
+        const validEnvelopes: AuditEnvelope[] = [];
+        const validMessageIds: string[] = [];
+        const nowIso = new Date().toISOString();
+
+        for (const item of batch) {
+          if (!item.envelope || !item.envelope._id) {
+            await pushToDLQ(
+              item.id,
+              item.rawPayload,
+              "Payload de auditoria inválido ou corrompido"
+            );
+            validMessageIds.push(item.id);
+            continue;
+          }
+
+          item.envelope.ingestedAt = nowIso;
+          validEnvelopes.push(item.envelope);
+          validMessageIds.push(item.id);
+        }
+
+        if (validEnvelopes.length > 0) {
+          try {
+            await collection.insertMany(validEnvelopes, { ordered: false });
+          } catch (insertErr: any) {
+            if (insertErr?.code !== 11000) {
+              console.error("[AutoDrain Error]:", insertErr);
+            }
+          }
+        }
+
+        await ackAuditMessages(validMessageIds);
+      }
+    } catch (drainErr) {
+      console.warn("[AutoDrain Queue Warning]:", drainErr);
+    }
+
     const url = new URL(request.url);
     const search = url.searchParams.get("search")?.trim();
     const system = url.searchParams.get("system")?.trim();
@@ -25,8 +75,6 @@ export async function GET(request: Request) {
     const status = url.searchParams.get("status")?.trim();
     const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "50", 10), 1), 100);
     const skip = Math.max(parseInt(url.searchParams.get("skip") || "0", 10), 0);
-
-    const collection = await getAuditCollection();
 
     // Monta filtro MongoDB
     const filter: Filter<AuditEnvelope> = {};
@@ -72,7 +120,7 @@ export async function GET(request: Request) {
         .toArray(),
     ]);
 
-    // Tamanho da fila pendente no Redis
+    // Tamanho da fila pendente no Redis após drenagem
     let pendingQueueCount = 0;
     try {
       const redis = getAuditRedisClient();

@@ -35,6 +35,11 @@ export interface AuditChange {
   after: unknown;
 }
 
+export interface AuditDiff {
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+}
+
 export interface AuditEnvelope {
   schemaVersion: number;
   _id: string;
@@ -51,6 +56,7 @@ export interface AuditEnvelope {
   searchTokens?: string[];
   context: AuditContext;
   changes?: AuditChange[];
+  diff?: AuditDiff;
   details: Record<string, unknown>;
   hash?: string;
   prevHash?: string;
@@ -67,6 +73,7 @@ export interface LogAuditOptions {
   targets?: AuditTarget[];
   context?: Partial<AuditContext>;
   changes?: AuditChange[];
+  diff?: AuditDiff;
   details?: Record<string, unknown>;
 }
 
