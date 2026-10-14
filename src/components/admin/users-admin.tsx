@@ -3,6 +3,9 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppWindow,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Edit3,
   MailPlus,
   Plus,
@@ -24,6 +27,9 @@ import { apiFetch } from "@/lib/api/client-fetch";
 import { formatCpf, formatPhone } from "@/lib/formatters";
 import { sortUserListItems } from "@/lib/api/dto";
 import type { UserApplicationAccessDTO, UserListItemDTO, UserResponseDTO } from "@/lib/api/types";
+
+type SortField = "nome" | "email" | "status" | "is_admin";
+type SortDirection = "asc" | "desc";
 
 type DraftUser = {
   nome: string;
@@ -271,7 +277,53 @@ export function UsersAdmin() {
   const didRunInitialSearch = useRef(false);
 
   const isAdmin = Boolean(me?.is_admin);
-  const sortedUsers = useMemo(() => sortUserListItems(users), [users]);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else {
+        setSortField(null);
+        setSortDirection("asc");
+      }
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const sortedUsers = useMemo(() => {
+    if (!sortField) {
+      return sortUserListItems(users);
+    }
+
+    return [...users].sort((a, b) => {
+      let diff = 0;
+      if (sortField === "nome") {
+        const nameA = getUserDisplayName(a);
+        const nameB = getUserDisplayName(b);
+        diff = nameA.localeCompare(nameB, "pt-BR", { sensitivity: "base" });
+      } else if (sortField === "email") {
+        diff = (a.email ?? "").localeCompare(b.email ?? "", "pt-BR", { sensitivity: "base" });
+      } else if (sortField === "status") {
+        diff = getStatusLabel(a).localeCompare(getStatusLabel(b), "pt-BR", { sensitivity: "base" });
+      } else if (sortField === "is_admin") {
+        const adminA = a.is_admin ? "Sim" : "Não";
+        const adminB = b.is_admin ? "Sim" : "Não";
+        diff = adminA.localeCompare(adminB, "pt-BR", { sensitivity: "base" });
+      }
+
+      if (diff !== 0) {
+        return sortDirection === "asc" ? diff : -diff;
+      }
+
+      const nameDiff = getUserDisplayName(a).localeCompare(getUserDisplayName(b), "pt-BR", { sensitivity: "base" });
+      if (nameDiff !== 0) return nameDiff;
+      return (a.id ?? "").localeCompare(b.id ?? "");
+    });
+  }, [users, sortField, sortDirection]);
   const activeCount = useMemo(
     () => users.filter((user) => getUserStatus(user) === "ativo").length,
     [users],
@@ -673,6 +725,37 @@ export function UsersAdmin() {
     return Array.from(options.entries()).map(([chave, nome]) => ({ chave, nome }));
   }, [platforms]);
 
+  const renderSortableHeader = (field: SortField, label: string, extraClassName = "") => {
+    const isActive = sortField === field;
+    return (
+      <th className={`px-5 py-3 ${extraClassName}`}>
+        <button
+          type="button"
+          onClick={() => handleSort(field)}
+          className={`group inline-flex items-center gap-1.5 uppercase tracking-[0.14em] font-semibold transition-colors hover:text-white cursor-pointer select-none ${
+            isActive ? "text-cyan-300" : "text-slate-400"
+          }`}
+          title={`Ordenar por ${label}${isActive ? (sortDirection === "asc" ? " (crescente)" : " (decrescente)") : ""}`}
+        >
+          <span>{label}</span>
+          {isActive ? (
+            sortDirection === "asc" ? (
+              <ArrowUp size={14} className="text-cyan-300" aria-label="Ordenado de forma crescente" />
+            ) : (
+              <ArrowDown size={14} className="text-cyan-300" aria-label="Ordenado de forma decrescente" />
+            )
+          ) : (
+            <ArrowUpDown
+              size={14}
+              className="text-slate-500 opacity-0 transition-opacity group-hover:opacity-100"
+              aria-hidden="true"
+            />
+          )}
+        </button>
+      </th>
+    );
+  };
+
   return (
     <AppShell title="Administração de usuários">
       {alert ? (
@@ -725,10 +808,10 @@ export function UsersAdmin() {
           <table className="w-full min-w-[880px] text-left text-sm">
             <thead className="bg-slate-950/70 text-xs uppercase tracking-[0.14em] text-slate-400">
               <tr>
-                <th className="px-5 py-3 pl-[4.25rem]">Nome</th>
-                <th className="px-5 py-3">E-mail</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3">Admin</th>
+                {renderSortableHeader("nome", "Nome", "pl-[4.25rem]")}
+                {renderSortableHeader("email", "E-mail")}
+                {renderSortableHeader("status", "Status")}
+                {renderSortableHeader("is_admin", "Admin")}
                 <th className="px-5 py-3 text-right">Ações</th>
               </tr>
             </thead>
