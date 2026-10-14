@@ -137,14 +137,9 @@ function JsonDiffBlock({
             return (
               <div
                 key={key}
-                className="flex items-center justify-between rounded border border-dashed border-slate-800 bg-slate-900/30 px-2 py-1 text-[10px] text-slate-500 italic"
+                className="rounded border border-dashed border-slate-800 bg-slate-900/30 px-2 py-1 text-[10px] text-slate-500 italic"
               >
-                <span>
-                  &quot;{key}&quot;: &lt;{isBefore ? "não existia / adicionado depois" : "removido"}&gt;
-                </span>
-                <span className="rounded bg-slate-800 px-1 py-0.5 text-[9px] font-semibold uppercase text-slate-400">
-                  {isBefore ? "+ Adicionado" : "- Removido"}
-                </span>
+                &quot;{key}&quot;: &lt;{isBefore ? "não existia" : "removido"}&gt;
               </div>
             );
           }
@@ -164,58 +159,44 @@ function JsonDiffBlock({
                   : "text-slate-400 opacity-60 hover:bg-slate-900/40 hover:opacity-100"
               }`}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <span
-                    className={
+              <div className="min-w-0 flex-1">
+                <span
+                  className={
+                    isChanged
+                      ? isBefore
+                        ? "font-bold text-rose-300"
+                        : "font-bold text-emerald-300"
+                      : "font-medium text-cyan-400"
+                  }
+                >
+                  &quot;{key}&quot;:
+                </span>{" "}
+                {isMultiline ? (
+                  <pre
+                    className={`mt-1 whitespace-pre-wrap break-all rounded p-2 text-[10px] ${
                       isChanged
                         ? isBefore
-                          ? "font-bold text-rose-300"
-                          : "font-bold text-emerald-300"
-                        : "font-medium text-cyan-400"
-                    }
-                  >
-                    &quot;{key}&quot;:
-                  </span>{" "}
-                  {isMultiline ? (
-                    <pre
-                      className={`mt-1 whitespace-pre-wrap break-all rounded p-2 text-[10px] ${
-                        isChanged
-                          ? isBefore
-                            ? "border border-rose-500/30 bg-rose-950/40 text-rose-200"
-                            : "border border-emerald-500/30 bg-emerald-950/40 text-emerald-200"
-                          : "border border-slate-800 bg-slate-950 text-slate-300"
-                      }`}
-                    >
-                      {formattedVal}
-                    </pre>
-                  ) : (
-                    <span
-                      className={`break-all ${
-                        isChanged
-                          ? isBefore
-                            ? "font-semibold text-rose-100"
-                            : "font-semibold text-emerald-100"
-                          : "text-slate-300"
-                      }`}
-                    >
-                      {formattedVal}
-                    </span>
-                  )}
-                  {!isLast && <span className="text-slate-600">,</span>}
-                </div>
-
-                {isChanged && (
-                  <span
-                    className={`shrink-0 select-none rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                      isBefore
-                        ? "border border-rose-500/40 bg-rose-500/30 text-rose-200"
-                        : "border border-emerald-500/40 bg-emerald-500/30 text-emerald-200"
+                          ? "border border-rose-500/30 bg-rose-950/40 text-rose-200"
+                          : "border border-emerald-500/30 bg-emerald-950/40 text-emerald-200"
+                        : "border border-slate-800 bg-slate-950 text-slate-300"
                     }`}
                   >
-                    {isBefore ? "Antes: Alterado" : "Depois: Novo"}
+                    {formattedVal}
+                  </pre>
+                ) : (
+                  <span
+                    className={`break-all ${
+                      isChanged
+                        ? isBefore
+                          ? "font-semibold text-rose-100"
+                          : "font-semibold text-emerald-100"
+                        : "text-slate-300"
+                    }`}
+                  >
+                    {formattedVal}
                   </span>
                 )}
+                {!isLast && <span className="text-slate-600">,</span>}
               </div>
             </div>
           );
@@ -528,18 +509,7 @@ export function AuditAdmin() {
                         {/* Ação / Categoria */}
                         <td className="px-4 py-3.5">
                           <div className="flex flex-col">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-white">{event.action}</span>
-                              {((event.changes && event.changes.length > 0) || event.diff) && (
-                                <span
-                                  className="inline-flex items-center gap-1 rounded border border-cyan-500/30 bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300"
-                                  title={`${event.changes?.length || "Vários"} campo(s) alterado(s)`}
-                                >
-                                  <ArrowRightLeft size={10} />
-                                  {event.changes?.length ? `${event.changes.length} diff` : "diff"}
-                                </span>
-                              )}
-                            </div>
+                            <span className="font-semibold text-white">{event.action}</span>
                             <span className="text-[10px] text-slate-400">{event.category}</span>
                           </div>
                         </td>
