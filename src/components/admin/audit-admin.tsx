@@ -6,32 +6,41 @@ import {
   AlertTriangle,
   ArrowRight,
   ArrowRightLeft,
+  Calendar,
   Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clock,
   Copy,
   Database,
   Filter,
   Layers,
   Lock,
   RefreshCw,
+  RotateCcw,
   Search,
   ShieldCheck,
   Terminal,
   User,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { SystemAlert, type SystemAlertType } from "@/components/ui/system-alert";
 import { apiFetch } from "@/lib/api/client-fetch";
 import type { AuditEnvelope, AuditSeverity, AuditStatus, AuditSystem } from "@/lib/audit/types";
+import { MultiSelectDropdown, type MultiSelectOption } from "./audit-multi-select";
+import { AuditPagination } from "./audit-pagination";
 
 interface AuditResponse {
   events: AuditEnvelope[];
   total: number;
-  skip: number;
+  page: number;
   limit: number;
+  totalPages: number;
+  platforms?: Array<{ clientId: string; name: string }>;
   stats: {
     totalEvents: number;
     pendingQueueCount: number;
@@ -208,29 +217,87 @@ function JsonDiffBlock({
 }
 
 export function AuditAdmin() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [data, setData] = useState<AuditResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState<{ type: SystemAlertType; message: string } | null>(null);
 
-  // Filtros
-  const [search, setSearch] = useState("");
-  const [selectedSystem, setSelectedSystem] = useState<string>("all");
-  const [selectedSeverity, setSelectedSeverity] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  // Estados dos inputs de filtro (editados antes de clicar em "Aplicar Filtros")
+  const [search, setSearch] = useState(() => searchParams.get("search") || "");
+  const [action, setAction] = useState(() => searchParams.get("action") || "");
+  const [startDate, setStartDate] = useState(
+    () => searchParams.get("startDate") || searchParams.get("from") || ""
+  );
+  const [endDate, setEndDate] = useState(
+    () => searchParams.get("endDate") || searchParams.get("to") || ""
+  );
+  const [selectedSystems, setSelectedSystems] = useState<string[]>(() => {
+    const param = searchParams.get("systems") || searchParams.get("system");
+    return param && param !== "all"
+      ? param.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+  });
+  const [selectedSeverities, setSelectedSeverities] = useState<string[]>(() => {
+    const param = searchParams.get("severities") || searchParams.get("severity");
+    return param && param !== "all"
+      ? param.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+  });
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(() => {
+    const param = searchParams.get("statuses") || searchParams.get("status");
+    return param && param !== "all"
+      ? param.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+  });
 
   // Modal / Drawer de Detalhes
   const [selectedEvent, setSelectedEvent] = useState<AuditEnvelope | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Sincroniza estados dos inputs quando a URL mudar (ex: botão voltar/avançar do navegador)
+  useEffect(() => {
+    setSearch(searchParams.get("search") || "");
+    setAction(searchParams.get("action") || "");
+    setStartDate(searchParams.get("startDate") || searchParams.get("from") || "");
+    setEndDate(searchParams.get("endDate") || searchParams.get("to") || "");
+
+    const sys = searchParams.get("systems") || searchParams.get("system");
+    setSelectedSystems(sys && sys !== "all" ? sys.split(",").map((s) => s.trim()).filter(Boolean) : []);
+
+    const sev = searchParams.get("severities") || searchParams.get("severity");
+    setSelectedSeverities(sev && sev !== "all" ? sev.split(",").map((s) => s.trim()).filter(Boolean) : []);
+
+    const sta = searchParams.get("statuses") || searchParams.get("status");
+    setSelectedStatuses(sta && sta !== "all" ? sta.split(",").map((s) => s.trim()).filter(Boolean) : []);
+  }, [searchParams]);
+
+  // Consulta à API baseada nos searchParams da URL
   const fetchAuditEvents = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (search.trim()) params.set("search", search.trim());
-      if (selectedSystem !== "all") params.set("system", selectedSystem);
-      if (selectedSeverity !== "all") params.set("severity", selectedSeverity);
-      if (selectedStatus !== "all") params.set("status", selectedStatus);
-      params.set("limit", "50");
+      const qSearch = searchParams.get("search");
+      const qAction = searchParams.get("action");
+      const qStart = searchParams.get("startDate") || searchParams.get("from");
+      const qEnd = searchParams.get("endDate") || searchParams.get("to");
+      const qSystems = searchParams.get("systems") || searchParams.get("system");
+      const qSeverities = searchParams.get("severities") || searchParams.get("severity");
+      const qStatuses = searchParams.get("statuses") || searchParams.get("status");
+      const qPage = searchParams.get("page") || "1";
+      const qLimit = searchParams.get("limit") || "25";
+
+      if (qSearch?.trim()) params.set("search", qSearch.trim());
+      if (qAction?.trim()) params.set("action", qAction.trim());
+      if (qStart?.trim()) params.set("startDate", qStart.trim());
+      if (qEnd?.trim()) params.set("endDate", qEnd.trim());
+      if (qSystems && qSystems !== "all") params.set("systems", qSystems);
+      if (qSeverities && qSeverities !== "all") params.set("severities", qSeverities);
+      if (qStatuses && qStatuses !== "all") params.set("statuses", qStatuses);
+      params.set("page", qPage);
+      params.set("limit", qLimit);
 
       const res = await apiFetch<AuditResponse>(`/api/v1/audit?${params.toString()}`);
       setData(res);
@@ -244,11 +311,89 @@ export function AuditAdmin() {
     } finally {
       if (!isSilent) setLoading(false);
     }
-  }, [search, selectedSystem, selectedSeverity, selectedStatus]);
+  }, [searchParams]);
 
   useEffect(() => {
     fetchAuditEvents();
   }, [fetchAuditEvents]);
+
+  // Aplica filtros atualizando a URL
+  const applyFilters = (newPage = 1, newLimit?: number) => {
+    const currentLimit = newLimit ?? (parseInt(searchParams.get("limit") || "25", 10) || 25);
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("search", search.trim());
+    if (action.trim()) params.set("action", action.trim());
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    if (selectedSystems.length > 0) params.set("systems", selectedSystems.join(","));
+    if (selectedSeverities.length > 0) params.set("severities", selectedSeverities.join(","));
+    if (selectedStatuses.length > 0) params.set("statuses", selectedStatuses.join(","));
+    if (newPage > 1) params.set("page", String(newPage));
+    if (currentLimit !== 25) params.set("limit", String(currentLimit));
+
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  // Limpa todos os filtros
+  const clearFilters = () => {
+    setSearch("");
+    setAction("");
+    setStartDate("");
+    setEndDate("");
+    setSelectedSystems([]);
+    setSelectedSeverities([]);
+    setSelectedStatuses([]);
+    router.push(pathname, { scroll: false });
+  };
+
+  // Contagem de filtros ativos
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (search.trim()) count++;
+    if (action.trim()) count++;
+    if (startDate) count++;
+    if (endDate) count++;
+    if (selectedSystems.length > 0) count++;
+    if (selectedSeverities.length > 0) count++;
+    if (selectedStatuses.length > 0) count++;
+    return count;
+  }, [search, action, startDate, endDate, selectedSystems, selectedSeverities, selectedStatuses]);
+
+  // Opções dinâmicas de plataformas
+  const systemOptions: MultiSelectOption[] = useMemo(() => {
+    const dynamicPlatforms = data?.platforms || [];
+    if (dynamicPlatforms.length > 0) {
+      return dynamicPlatforms.map((p) => {
+        const conf = SYSTEM_LABELS[p.clientId as AuditSystem];
+        return {
+          value: p.clientId,
+          label: p.name,
+          badge: conf ? conf.label : p.clientId,
+          badgeClass: conf
+            ? `${conf.border} ${conf.bg} ${conf.color} border`
+            : "border border-slate-700 bg-slate-800 text-slate-300",
+        };
+      });
+    }
+
+    return Object.entries(SYSTEM_LABELS).map(([sys, conf]) => ({
+      value: sys,
+      label: conf.label,
+      badge: conf.label,
+      badgeClass: `${conf.border} ${conf.bg} ${conf.color} border`,
+    }));
+  }, [data?.platforms]);
+
+  const severityOptions: MultiSelectOption[] = [
+    { value: "INFO", label: "INFO", badge: "INFO", badgeClass: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" },
+    { value: "WARNING", label: "WARNING", badge: "WARN", badgeClass: "bg-amber-500/15 text-amber-300 border border-amber-500/30" },
+    { value: "CRITICAL", label: "CRITICAL", badge: "CRIT", badgeClass: "bg-rose-500/15 text-rose-300 border border-rose-500/30" },
+  ];
+
+  const statusOptions: MultiSelectOption[] = [
+    { value: "SUCCESS", label: "Sucesso", badge: "OK", badgeClass: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" },
+    { value: "FAILURE", label: "Falha", badge: "ERRO", badgeClass: "bg-rose-500/15 text-rose-300 border border-rose-500/30" },
+  ];
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -256,6 +401,8 @@ export function AuditAdmin() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const page = data?.page ?? (parseInt(searchParams.get("page") || "1", 10) || 1);
+  const limit = data?.limit ?? (parseInt(searchParams.get("limit") || "25", 10) || 25);
   const stats = data?.stats;
 
   const changedKeysSet = useMemo(() => {
@@ -392,62 +539,126 @@ export function AuditAdmin() {
           </div>
         </div>
 
-        {/* Barra de Filtros e Busca */}
-        <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar por ator, alvo, ação, e-mail, IP ou ID..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 outline-none transition focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <Filter size={14} />
-              <span>Filtros:</span>
+        {/* Barra de Filtros e Busca Completa */}
+        <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 shadow-xl backdrop-blur-md">
+          {/* Linha 1: Busca Livre + Multi-seletores Dropdown */}
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar por ator, alvo, ação, e-mail, IP ou ID..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") applyFilters(1);
+                }}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 outline-none transition focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+              />
             </div>
 
-            {/* Filtro Sistema */}
-            <select
-              value={selectedSystem}
-              onChange={(e) => setSelectedSystem(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-slate-200 outline-none focus:border-cyan-500"
-            >
-              <option value="all">Todos os Sistemas</option>
-              <option value="raronexus">RaroNexus</option>
-              <option value="rarostock">RaroStock</option>
-              <option value="rarogestao">RaroGestão</option>
-              <option value="raroclients">RaroClients</option>
-              <option value="raropay">RaroPay</option>
-              <option value="rarotickets">RaroTickets</option>
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Multi-Select Plataformas / Sistemas */}
+              <MultiSelectDropdown
+                label="Sistemas"
+                options={systemOptions}
+                selected={selectedSystems}
+                onChange={setSelectedSystems}
+                showSearch
+              />
 
-            {/* Filtro Severidade */}
-            <select
-              value={selectedSeverity}
-              onChange={(e) => setSelectedSeverity(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-slate-200 outline-none focus:border-cyan-500"
-            >
-              <option value="all">Todas as Severidades</option>
-              <option value="INFO">INFO</option>
-              <option value="WARNING">WARNING</option>
-              <option value="CRITICAL">CRITICAL</option>
-            </select>
+              {/* Multi-Select Severidade */}
+              <MultiSelectDropdown
+                label="Severidade"
+                options={severityOptions}
+                selected={selectedSeverities}
+                onChange={setSelectedSeverities}
+              />
 
-            {/* Filtro Status */}
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-slate-200 outline-none focus:border-cyan-500"
-            >
-              <option value="all">Todos os Status</option>
-              <option value="SUCCESS">Sucesso</option>
-              <option value="FAILURE">Falha</option>
-            </select>
+              {/* Multi-Select Status */}
+              <MultiSelectDropdown
+                label="Status"
+                options={statusOptions}
+                selected={selectedStatuses}
+                onChange={setSelectedStatuses}
+              />
+            </div>
+          </div>
+
+          {/* Linha 2: Período (Data/Hora De / Até), Filtro Ação/Categoria e Botões de Ação */}
+          <div className="flex flex-col gap-3 pt-2 border-t border-slate-800/80 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Filtro Período (Data Inicial e Final com Horário) */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <Calendar size={13} className="text-cyan-400" />
+                  <span>De:</span>
+                  <input
+                    type="datetime-local"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 [color-scheme:dark]"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <span>Até:</span>
+                  <input
+                    type="datetime-local"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 [color-scheme:dark]"
+                  />
+                </div>
+              </div>
+
+              {/* Filtro Ação / Categoria (texto livre) */}
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 min-w-[220px]">
+                <span className="shrink-0">Ação / Categoria:</span>
+                <input
+                  type="text"
+                  placeholder="Ex: product.updated, inventory..."
+                  value={action}
+                  onChange={(e) => setAction(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") applyFilters(1);
+                  }}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
+
+            {/* Botões Aplicar Filtros e Limpar */}
+            <div className="flex items-center gap-2 self-end lg:self-auto">
+              {activeFiltersCount > 0 && (
+                <span className="text-[11px] font-semibold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2 py-1 rounded-md">
+                  {activeFiltersCount} {activeFiltersCount === 1 ? "filtro ativo" : "filtros ativos"}
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => applyFilters(1)}
+                disabled={loading}
+                className="flex items-center gap-1.5 rounded-lg border border-cyan-500/50 bg-cyan-500 px-4 py-1.5 text-xs font-bold text-slate-950 shadow-md shadow-cyan-500/20 hover:bg-cyan-400 transition disabled:opacity-50"
+              >
+                <Filter size={13} />
+                Aplicar Filtros
+              </button>
+
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  disabled={loading}
+                  className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition disabled:opacity-50"
+                  title="Limpar todos os filtros"
+                >
+                  <X size={13} />
+                  Limpar
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -616,17 +827,27 @@ export function AuditAdmin() {
             </table>
           </div>
 
-          {/* Rodapé da Tabela */}
-          <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/40 px-4 py-3 text-xs text-slate-400">
+          {/* Rodapé Informativo */}
+          <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/40 px-4 py-2.5 text-xs text-slate-400">
             <span>
-              Exibindo <strong>{data?.events?.length ?? 0}</strong> de{" "}
-              <strong>{data?.total ?? 0}</strong> eventos filtrados
+              Página <strong>{page}</strong> de <strong>{data?.totalPages ?? 1}</strong> ({data?.total ?? 0} registros encontrados)
             </span>
             <span className="text-[11px] text-slate-500">
               Retenção garantida no MongoDB Atlas Cluster0 (São Paulo)
             </span>
           </div>
         </div>
+
+        {/* Paginação Server-Side */}
+        <AuditPagination
+          page={page}
+          limit={limit}
+          total={data?.total ?? 0}
+          totalPages={data?.totalPages ?? 1}
+          onPageChange={(newPage) => applyFilters(newPage, limit)}
+          onLimitChange={(newLimit) => applyFilters(1, newLimit)}
+          disabled={loading}
+        />
 
         {/* Modal / Drawer com Detalhes do Evento */}
         {selectedEvent && (

@@ -14,6 +14,8 @@ import {
 import { tokenize } from "@/lib/audit/tokens";
 import type { AuditEnvelope } from "@/lib/audit/types";
 import type { Filter } from "mongodb";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
+import { ApplicationRepository } from "@/lib/api/repositories/application-repository";
 
 export async function GET(request: Request) {
   return handleApi(async () => {
@@ -70,27 +72,79 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const search = url.searchParams.get("search")?.trim();
-    const system = url.searchParams.get("system")?.trim();
-    const severity = url.searchParams.get("severity")?.trim();
-    const status = url.searchParams.get("status")?.trim();
-    const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "50", 10), 1), 100);
-    const skip = Math.max(parseInt(url.searchParams.get("skip") || "0", 10), 0);
+    const action = url.searchParams.get("action")?.trim();
+    const startDate = url.searchParams.get("startDate")?.trim() || url.searchParams.get("from")?.trim();
+    const endDate = url.searchParams.get("endDate")?.trim() || url.searchParams.get("to")?.trim();
+
+    // Suporte a múltiplos filtros (vírgula ou parâmetro único)
+    const systemsParam = url.searchParams.get("systems")?.trim() || url.searchParams.get("system")?.trim();
+    const severitiesParam = url.searchParams.get("severities")?.trim() || url.searchParams.get("severity")?.trim();
+    const statusesParam = url.searchParams.get("statuses")?.trim() || url.searchParams.get("status")?.trim();
+
+    // Paginação
+    const pageParam = parseInt(url.searchParams.get("page") || "1", 10);
+    const page = Math.max(isNaN(pageParam) ? 1 : pageParam, 1);
+    const limitParam = parseInt(url.searchParams.get("limit") || "25", 10);
+    const limit = Math.min(Math.max(isNaN(limitParam) ? 25 : limitParam, 1), 100);
+    const skip = (page - 1) * limit;
 
     // Monta filtro MongoDB
     const filter: Filter<AuditEnvelope> = {};
 
-    if (system && system !== "all") {
-      filter.system = system as any;
+    // 1. Sistemas múltiplos
+    if (systemsParam && systemsParam !== "all") {
+      const systemsList = systemsParam.split(",").map((s) => s.trim()).filter(Boolean);
+      if (systemsList.length === 1) {
+        filter.system = systemsList[0] as any;
+      } else if (systemsList.length > 1) {
+        filter.system = { $in: systemsList } as any;
+      }
     }
 
-    if (severity && severity !== "all") {
-      filter.severity = severity as any;
+    // 2. Severidades múltiplas
+    if (severitiesParam && severitiesParam !== "all") {
+      const sevList = severitiesParam.split(",").map((s) => s.trim()).filter(Boolean);
+      if (sevList.length === 1) {
+        filter.severity = sevList[0] as any;
+      } else if (sevList.length > 1) {
+        filter.severity = { $in: sevList } as any;
+      }
     }
 
-    if (status && status !== "all") {
-      filter.status = status as any;
+    // 3. Status múltiplos
+    if (statusesParam && statusesParam !== "all") {
+      const statusList = statusesParam.split(",").map((s) => s.trim()).filter(Boolean);
+      if (statusList.length === 1) {
+        filter.status = statusList[0] as any;
+      } else if (statusList.length > 1) {
+        filter.status = { $in: statusList } as any;
+      }
     }
 
+    // 4. Período direto (startDate / endDate)
+    if (startDate || endDate) {
+      filter.timestamp = {};
+      if (startDate) {
+        const startIso = new Date(startDate).toISOString();
+        if (startIso) filter.timestamp.$gte = startIso;
+      }
+      if (endDate) {
+        const endIso = new Date(endDate).toISOString();
+        if (endIso) filter.timestamp.$lte = endIso;
+      }
+    }
+
+    // 5. Ação ou Categoria (texto livre digitado)
+    if (action) {
+      const escaped = action.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(escaped, "i");
+      filter.$or = [
+        { action: regex },
+        { category: regex },
+      ];
+    }
+
+    // 6. Busca textual geral
     if (search) {
       const searchWords = tokenize(search);
       if (searchWords.length > 0) {
@@ -98,7 +152,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // Consulta paginada
+    // Consulta paginada e agregações
     const [events, totalFiltered, totalAll, systemAgg, severityAgg] = await Promise.all([
       collection
         .find(filter)
@@ -119,6 +173,36 @@ export async function GET(request: Request) {
         ])
         .toArray(),
     ]);
+
+    // Plataformas dinâmicas cadastradas no RaroNexus (Supabase)
+    const platformsMap = new Map<string, { clientId: string; name: string }>();
+    try {
+      const supabase = createAdminSupabaseClient();
+      const repo = new ApplicationRepository(supabase);
+      const registeredApps = await repo.listAll();
+      for (const app of registeredApps) {
+        if (app.client_id) {
+          platformsMap.set(app.client_id, {
+            clientId: app.client_id,
+            name: app.nome || app.client_id,
+          });
+        }
+      }
+    } catch (platformErr) {
+      console.warn("[Audit Route] Erro ao carregar aplicações cadastradas:", platformErr);
+    }
+
+    // Adiciona qualquer sistema que já tenha emitido eventos no banco (retrocompatibilidade)
+    for (const item of systemAgg) {
+      if (item._id && !platformsMap.has(item._id)) {
+        platformsMap.set(item._id, {
+          clientId: item._id,
+          name: item._id,
+        });
+      }
+    }
+
+    const platforms = Array.from(platformsMap.values());
 
     // Tamanho da fila pendente no Redis após drenagem
     let pendingQueueCount = 0;
@@ -146,8 +230,10 @@ export async function GET(request: Request) {
     return ok({
       events,
       total: totalFiltered,
-      skip,
+      page,
       limit,
+      totalPages: Math.ceil(totalFiltered / limit),
+      platforms,
       stats: {
         totalEvents: totalAll,
         pendingQueueCount,
