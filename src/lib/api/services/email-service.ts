@@ -1,5 +1,6 @@
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { sendStandardEmail, sendTemplatedEmail } from "@/lib/server-mail";
+import { auditClient, getRequestContext } from "@/lib/audit";
 import { ApiException } from "../errors";
 import { ApplicationRepository } from "../repositories/application-repository";
 import { EmailRepository } from "../repositories/email-repository";
@@ -376,11 +377,16 @@ export class EmailService {
   }
 
   async sendFromApplication(request: Request, input: SendInput, endpoint: EmailEndpointKey = "send") {
-    const { application, setting, endpoint: endpointRow } = await this.authenticateApplication(request, endpoint);
-    this.ensureAllowedRecipients(setting, input.to);
+    let application: ApplicationRow | null = null;
+    let endpointRow: EmailEndpointRow | null = null;
 
     try {
-      const template = await this.getTemplateSettings(application, setting);
+      const auth = await this.authenticateApplication(request, endpoint);
+      application = auth.application;
+      endpointRow = auth.endpoint;
+      this.ensureAllowedRecipients(auth.setting, input.to);
+
+      const template = await this.getTemplateSettings(application, auth.setting);
       const subject = input.subject || endpointRow.default_subject;
 
       if (!subject || !input.body || !endpointRow.html_template?.includes("{{body}}")) {
@@ -417,19 +423,77 @@ export class EmailService {
           : input.metadata,
       });
 
+      auditClient.log({
+        system: "raronexus",
+        category: "email",
+        action: "email.dispatched",
+        severity: "INFO",
+        status: "SUCCESS",
+        actor: {
+          type: "system",
+          name: application.nome,
+        },
+        targets: [
+          {
+            type: "application",
+            id: application.id,
+            label: application.nome,
+          },
+        ],
+        context: getRequestContext(request),
+        details: {
+          endpoint,
+          recipients: input.to,
+          subject,
+          message_id: result.messageId,
+        },
+      });
+
       return { sent: true, message_id: result.messageId ?? null };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Falha ao enviar e-mail.";
-      await this.log({
-        applicationId: application.id,
-        endpoint,
-        recipients: input.to,
-        subject: input.subject || endpointRow.default_subject,
-        status: "error",
-        errorCode: error instanceof ApiException ? error.code : "EMAIL_SEND_FAILED",
-        errorMessage,
-        metadata: input.metadata,
+      if (application) {
+        await this.log({
+          applicationId: application.id,
+          endpoint,
+          recipients: input.to,
+          subject: input.subject || endpointRow?.default_subject,
+          status: "error",
+          errorCode: error instanceof ApiException ? error.code : "EMAIL_SEND_FAILED",
+          errorMessage,
+          metadata: input.metadata,
+        });
+      }
+
+      auditClient.log({
+        system: "raronexus",
+        category: "email",
+        action: "email.dispatch_failed",
+        severity: "CRITICAL",
+        status: "FAILURE",
+        actor: {
+          type: "system",
+          name: application ? application.nome : "Application API",
+        },
+        targets: application
+          ? [
+              {
+                type: "application",
+                id: application.id,
+                label: application.nome,
+              },
+            ]
+          : [],
+        context: getRequestContext(request),
+        details: {
+          endpoint,
+          recipients: input.to,
+          subject: input.subject || endpointRow?.default_subject,
+          error: errorMessage,
+          error_code: error instanceof ApiException ? error.code : "EMAIL_SEND_FAILED",
+        },
       });
+
       if (error instanceof ApiException) {
         throw error;
       }
@@ -442,7 +506,34 @@ export class EmailService {
     const { application, setting } = await this.authenticateApplication(request, endpoint);
     this.ensureAllowedRecipients(setting, [input.to]);
 
-    return this.sendTest(application, setting, input.to, input.metadata);
+    const result = await this.sendTest(application, setting, input.to, input.metadata);
+
+    auditClient.log({
+      system: "raronexus",
+      category: "email",
+      action: "email.test_sent",
+      severity: "INFO",
+      status: "SUCCESS",
+      actor: {
+        type: "system",
+        name: application.nome,
+      },
+      targets: [
+        {
+          type: "application",
+          id: application.id,
+          label: application.nome,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        to: input.to,
+        application_id: application.id,
+        message_id: result.message_id,
+      },
+    });
+
+    return result;
   }
 
   async testFromAdmin(context: AuthenticatedContext, input: AdminTestInput) {

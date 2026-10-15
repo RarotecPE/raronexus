@@ -79,6 +79,13 @@ export class ConstantService {
     return { ...toSummary(row), content };
   }
 
+  async getSummary(context: AuthenticatedContext, id: string): Promise<ApiConstantSummary> {
+    this.requireAdmin(context);
+    const row = await this.repository.findById(id);
+    if (!row) throw new ApiException("Constante não encontrada.", "CONSTANT_NOT_FOUND", 404);
+    return toSummary(row);
+  }
+
   async create(context: AuthenticatedContext, input: CreateInput): Promise<ApiConstantDetail> {
     this.requireAdmin(context);
     await this.cleanupExpiredVersions();

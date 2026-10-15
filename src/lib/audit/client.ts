@@ -50,8 +50,8 @@ export function computeChanges(
     if (JSON.stringify(valBefore) !== JSON.stringify(valAfter)) {
       changes.push({
         field,
-        before: valBefore,
-        after: valAfter,
+        before: valBefore === undefined ? null : valBefore,
+        after: valAfter === undefined ? null : valAfter,
       });
     }
   }

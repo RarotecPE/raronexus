@@ -8,12 +8,18 @@ function canonicalStringify(obj: unknown): string {
   if (obj === null || typeof obj !== 'object') {
     return JSON.stringify(obj);
   }
-  if (Array.isArray(obj)) {
-    return '[' + obj.map(canonicalStringify).join(',') + ']';
+  if (obj instanceof Date) {
+    return JSON.stringify(obj.toISOString());
   }
-  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  if (Array.isArray(obj)) {
+    return '[' + obj.map(item => (item === undefined ? 'null' : canonicalStringify(item))).join(',') + ']';
+  }
+  const rec = obj as Record<string, unknown>;
+  const keys = Object.keys(rec)
+    .filter(k => rec[k] !== undefined)
+    .sort();
   const pairs = keys.map(
-    k => JSON.stringify(k) + ':' + canonicalStringify((obj as Record<string, unknown>)[k])
+    k => JSON.stringify(k) + ':' + canonicalStringify(rec[k])
   );
   return '{' + pairs.join(',') + '}';
 }
