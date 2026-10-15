@@ -156,7 +156,7 @@ export function MultiSelectDropdown({
                       <div
                         className={`flex h-3.5 w-3.5 items-center justify-center rounded border transition ${
                           isChecked
-                            ? "border-cyan-400 bg-cyan-500 text-slate-950"
+                            ? "border-cyan-400 bg-cyan-500 text-white"
                             : "border-slate-600 bg-slate-950"
                         }`}
                       >

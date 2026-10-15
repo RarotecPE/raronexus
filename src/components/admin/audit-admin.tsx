@@ -17,6 +17,7 @@ import {
   Filter,
   Layers,
   Lock,
+  Plus,
   RefreshCw,
   RotateCcw,
   Search,
@@ -24,6 +25,7 @@ import {
   Terminal,
   User,
   X,
+  Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -110,6 +112,68 @@ function formatIsoDate(iso: string) {
   } catch {
     return iso;
   }
+}
+
+function parseDateTimeParam(param?: string | null): { date: string; time: string } {
+  if (!param) return { date: "", time: "" };
+  if (param.includes("T")) {
+    const [d, t] = param.split("T");
+    const cleanTime = t ? t.slice(0, 5) : "";
+    return { date: d || "", time: cleanTime };
+  }
+  if (param.includes(" ")) {
+    const [d, t] = param.split(" ");
+    const cleanTime = t ? t.slice(0, 5) : "";
+    return { date: d || "", time: cleanTime };
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(param)) {
+    return { date: param, time: "" };
+  }
+  try {
+    const dt = new Date(param);
+    if (!isNaN(dt.getTime())) {
+      const iso = dt.toISOString();
+      return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
+    }
+  } catch {}
+  return { date: "", time: "" };
+}
+
+function isCompleteDate(val?: string | null): boolean {
+  if (!val) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) return false;
+  const parts = val.split("-");
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+  if (year < 1970 || year > 2099) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  const d = new Date(year, month - 1, day);
+  return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
+}
+
+function isCompleteTime(val?: string | null): boolean {
+  if (!val) return false;
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(val)) return false;
+  const [h, m] = val.split(":").map((n) => parseInt(n, 10));
+  return h >= 0 && h <= 23 && m >= 0 && m <= 59;
+}
+
+function computeStartTimestamp(date: string, time: string): string {
+  if (!isCompleteDate(date)) return "";
+  if (isCompleteTime(time)) {
+    return `${date}T${time}:00`;
+  }
+  return `${date}T00:00:00`;
+}
+
+function computeEndTimestamp(date: string, time: string): string {
+  if (!isCompleteDate(date)) return "";
+  if (isCompleteTime(time)) {
+    return `${date}T${time}:59`;
+  }
+  return `${date}T23:59:59`;
 }
 
 function formatDiffValue(val: unknown): string {
@@ -237,16 +301,44 @@ export function AuditAdmin() {
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState<{ type: SystemAlertType; message: string } | null>(null);
 
-  // Estados dos inputs de filtro (editados antes de clicar em "Aplicar Filtros")
-  const [search, setSearch] = useState(() => searchParams.get("search") || "");
-  const [action, setAction] = useState(() => searchParams.get("action") || "");
-  const [actor, setActor] = useState(() => searchParams.get("actor") || "");
-  const [startDate, setStartDate] = useState(
-    () => searchParams.get("startDate") || searchParams.get("from") || ""
-  );
-  const [endDate, setEndDate] = useState(
-    () => searchParams.get("endDate") || searchParams.get("to") || ""
-  );
+  // Estados dos inputs de filtro (suporta múltiplos termos com +)
+  const [searchTags, setSearchTags] = useState<string[]>(() => {
+    const p = searchParams.get("searches") || searchParams.get("search");
+    if (!p) return [];
+    return p.split(",").map((s) => s.trim()).filter(Boolean);
+  });
+  const [searchInput, setSearchInput] = useState<string>("");
+
+  const [actions, setActions] = useState<string[]>(() => {
+    const p = searchParams.get("actions") || searchParams.get("action");
+    if (!p) return [];
+    return p.split(",").map((s) => s.trim()).filter(Boolean);
+  });
+  const [actionInput, setActionInput] = useState("");
+
+  const [actors, setActors] = useState<string[]>(() => {
+    const p = searchParams.get("actors") || searchParams.get("actor");
+    if (!p) return [];
+    return p.split(",").map((s) => s.trim()).filter(Boolean);
+  });
+  const [actorInput, setActorInput] = useState("");
+
+  const [startDate, setStartDate] = useState(() => {
+    const p = searchParams.get("startDate") || searchParams.get("from");
+    return parseDateTimeParam(p).date;
+  });
+  const [startTime, setStartTime] = useState(() => {
+    const p = searchParams.get("startDate") || searchParams.get("from");
+    return parseDateTimeParam(p).time;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const p = searchParams.get("endDate") || searchParams.get("to");
+    return parseDateTimeParam(p).date;
+  });
+  const [endTime, setEndTime] = useState(() => {
+    const p = searchParams.get("endDate") || searchParams.get("to");
+    return parseDateTimeParam(p).time;
+  });
   const [selectedSystems, setSelectedSystems] = useState<string[]>(() => {
     const param = searchParams.get("systems") || searchParams.get("system");
     return param && param !== "all"
@@ -266,6 +358,9 @@ export function AuditAdmin() {
       : [];
   });
 
+  // Modo de filtro dinâmico (ativado por padrão)
+  const [isDynamicFilter, setIsDynamicFilter] = useState(true);
+
   // Modal / Drawer de Detalhes
   const [selectedEvent, setSelectedEvent] = useState<AuditEnvelope | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -273,7 +368,9 @@ export function AuditAdmin() {
   // Estado do painel colapsável de filtros avançados
   const [isFiltersOpen, setIsFiltersOpen] = useState(() => {
     return Boolean(
+      searchParams.get("actions") ||
       searchParams.get("action") ||
+      searchParams.get("actors") ||
       searchParams.get("actor") ||
       searchParams.get("startDate") ||
       searchParams.get("from") ||
@@ -290,20 +387,31 @@ export function AuditAdmin() {
 
   // Sincroniza estados locais caso a URL mude externamente (botão voltar/avançar do navegador ou clearFilters)
   useEffect(() => {
-    const urlSearch = searchParams.get("search") || "";
-    const urlAction = searchParams.get("action") || "";
-    const urlActor = searchParams.get("actor") || "";
+    const rawSearch = searchParams.get("search") || searchParams.get("searches") || "";
+    const rawAction = searchParams.get("actions") || searchParams.get("action") || "";
+    const rawActor = searchParams.get("actors") || searchParams.get("actor") || "";
     const urlStart = searchParams.get("startDate") || searchParams.get("from") || "";
     const urlEnd = searchParams.get("endDate") || searchParams.get("to") || "";
     const sys = searchParams.get("systems") || searchParams.get("system");
     const sev = searchParams.get("severities") || searchParams.get("severity");
     const sta = searchParams.get("statuses") || searchParams.get("status");
 
-    setSearch((prev) => (prev !== urlSearch ? urlSearch : prev));
-    setAction((prev) => (prev !== urlAction ? urlAction : prev));
-    setActor((prev) => (prev !== urlActor ? urlActor : prev));
-    setStartDate((prev) => (prev !== urlStart ? urlStart : prev));
-    setEndDate((prev) => (prev !== urlEnd ? urlEnd : prev));
+    const parsedSearches = rawSearch ? rawSearch.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const parsedActions = rawAction ? rawAction.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const parsedActors = rawActor ? rawActor.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const parsedStart = parseDateTimeParam(urlStart);
+    const parsedEnd = parseDateTimeParam(urlEnd);
+
+    setSearchTags(parsedSearches);
+    setSearchInput("");
+    setActions(parsedActions);
+    setActionInput("");
+    setActors(parsedActors);
+    setActorInput("");
+    setStartDate(parsedStart.date);
+    setStartTime(parsedStart.time);
+    setEndDate(parsedEnd.date);
+    setEndTime(parsedEnd.time);
 
     const parsedSys = sys && sys !== "all" ? sys.split(",").map((s) => normalizeSystemKey(s.trim())).filter(Boolean) : [];
     setSelectedSystems(parsedSys);
@@ -320,9 +428,9 @@ export function AuditAdmin() {
     if (!isSilent) setLoading(true);
     try {
       const params = new URLSearchParams();
-      const qSearch = searchParams.get("search");
-      const qAction = searchParams.get("action");
-      const qActor = searchParams.get("actor");
+      const qSearch = searchParams.get("search") || searchParams.get("searches");
+      const qAction = searchParams.get("actions") || searchParams.get("action");
+      const qActor = searchParams.get("actors") || searchParams.get("actor");
       const qStart = searchParams.get("startDate") || searchParams.get("from");
       const qEnd = searchParams.get("endDate") || searchParams.get("to");
       const qSystems = searchParams.get("systems") || searchParams.get("system");
@@ -360,131 +468,257 @@ export function AuditAdmin() {
     fetchAuditEvents();
   }, [fetchAuditEvents]);
 
-  // Debounce automático para filtros de texto livre (busca geral, ação/categoria e ator)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const urlSearch = searchParams.get("search") || "";
-      const urlAction = searchParams.get("action") || "";
-      const urlActor = searchParams.get("actor") || "";
+  // Helper central para atualizar URL e disparar busca
+  const updateUrlParams = useCallback(
+    (overrides: {
+      searchTags?: string[];
+      actions?: string[];
+      actors?: string[];
+      systems?: string[];
+      severities?: string[];
+      statuses?: string[];
+      startIso?: string;
+      endIso?: string;
+    } = {}) => {
+      const curSearchTags = overrides.searchTags ?? searchTags;
+      const curActions = overrides.actions ?? actions;
+      const curActors = overrides.actors ?? actors;
+      const curSystems = overrides.systems ?? selectedSystems;
+      const curSeverities = overrides.severities ?? selectedSeverities;
+      const curStatuses = overrides.statuses ?? selectedStatuses;
+      const curStart = overrides.startIso !== undefined
+        ? overrides.startIso
+        : computeStartTimestamp(startDate, startTime);
+      const curEnd = overrides.endIso !== undefined
+        ? overrides.endIso
+        : computeEndTimestamp(endDate, endTime);
 
-      if (
-        search.trim() !== urlSearch.trim() ||
-        action.trim() !== urlAction.trim() ||
-        actor.trim() !== urlActor.trim()
-      ) {
-        const params = new URLSearchParams(searchParams.toString());
-        if (search.trim()) {
-          params.set("search", search.trim());
-        } else {
-          params.delete("search");
-        }
+      const params = new URLSearchParams(searchParams.toString());
 
-        if (action.trim()) {
-          params.set("action", action.trim());
-        } else {
-          params.delete("action");
-        }
-
-        if (actor.trim()) {
-          params.set("actor", actor.trim());
-        } else {
-          params.delete("actor");
-        }
-
-        params.delete("page");
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+      // Search (apenas tags confirmadas com +)
+      if (curSearchTags.length > 0) {
+        params.set("search", curSearchTags.join(","));
+      } else {
+        params.delete("search");
+        params.delete("searches");
       }
-    }, 350);
 
-    return () => clearTimeout(timer);
-  }, [search, action, actor, searchParams, pathname, router]);
+      // Actions (apenas tags confirmadas com +)
+      if (curActions.length > 0) {
+        params.set("actions", curActions.join(","));
+      } else {
+        params.delete("actions");
+        params.delete("action");
+      }
 
-  // Aplicação imediata dos campos de texto (ex: ao pressionar Enter)
-  const flushTextFilters = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (search.trim()) {
-      params.set("search", search.trim());
+      // Actors (apenas tags confirmadas com +)
+      if (curActors.length > 0) {
+        params.set("actors", curActors.join(","));
+      } else {
+        params.delete("actors");
+        params.delete("actor");
+      }
+
+      // Systems
+      if (curSystems.length > 0) {
+        params.set("systems", curSystems.join(","));
+      } else {
+        params.delete("systems");
+        params.delete("system");
+      }
+
+      // Severities
+      if (curSeverities.length > 0) {
+        params.set("severities", curSeverities.join(","));
+      } else {
+        params.delete("severities");
+        params.delete("severity");
+      }
+
+      // Statuses
+      if (curStatuses.length > 0) {
+        params.set("statuses", curStatuses.join(","));
+      } else {
+        params.delete("statuses");
+        params.delete("status");
+      }
+
+      // Dates
+      if (curStart) {
+        params.set("startDate", curStart);
+      } else {
+        params.delete("startDate");
+        params.delete("from");
+      }
+      if (curEnd) {
+        params.set("endDate", curEnd);
+      } else {
+        params.delete("endDate");
+        params.delete("to");
+      }
+
+      params.delete("page");
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [
+      searchTags,
+      actions,
+      actors,
+      selectedSystems,
+      selectedSeverities,
+      selectedStatuses,
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      searchParams,
+      pathname,
+      router,
+    ]
+  );
+
+  // Handlers para adicionar/remover termos textuais
+  const handleAddAction = () => {
+    const trimmed = actionInput.trim();
+    if (!trimmed) return;
+    if (!actions.includes(trimmed)) {
+      const next = [...actions, trimmed];
+      setActions(next);
+      setActionInput("");
+      if (isDynamicFilter) {
+        updateUrlParams({ actions: next });
+      }
     } else {
-      params.delete("search");
+      setActionInput("");
     }
-    if (action.trim()) {
-      params.set("action", action.trim());
-    } else {
-      params.delete("action");
-    }
-    if (actor.trim()) {
-      params.set("actor", actor.trim());
-    } else {
-      params.delete("actor");
-    }
-    params.delete("page");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  // Handlers reativos dinâmicos para cada filtro
+  const handleRemoveAction = (index: number) => {
+    const next = actions.filter((_, i) => i !== index);
+    setActions(next);
+    if (isDynamicFilter) {
+      updateUrlParams({ actions: next });
+    }
+  };
+
+  const handleAddActor = () => {
+    const trimmed = actorInput.trim();
+    if (!trimmed) return;
+    if (!actors.includes(trimmed)) {
+      const next = [...actors, trimmed];
+      setActors(next);
+      setActorInput("");
+      if (isDynamicFilter) {
+        updateUrlParams({ actors: next });
+      }
+    } else {
+      setActorInput("");
+    }
+  };
+
+  const handleRemoveActor = (index: number) => {
+    const next = actors.filter((_, i) => i !== index);
+    setActors(next);
+    if (isDynamicFilter) {
+      updateUrlParams({ actors: next });
+    }
+  };
+
+  const handleAddSearch = () => {
+    const trimmed = searchInput.trim();
+    if (!trimmed) return;
+    if (!searchTags.includes(trimmed)) {
+      const next = [...searchTags, trimmed];
+      setSearchTags(next);
+      setSearchInput("");
+      if (isDynamicFilter) {
+        updateUrlParams({ searchTags: next });
+      }
+    } else {
+      setSearchInput("");
+    }
+  };
+
+  const handleRemoveSearch = (index: number) => {
+    const next = searchTags.filter((_, i) => i !== index);
+    setSearchTags(next);
+    if (isDynamicFilter) {
+      updateUrlParams({ searchTags: next });
+    }
+  };
+
+  // Handlers para dropdowns e datas/horários separados
   const handleSystemsChange = (newSystems: string[]) => {
     setSelectedSystems(newSystems);
-    const params = new URLSearchParams(searchParams.toString());
-    if (newSystems.length > 0) {
-      params.set("systems", newSystems.join(","));
-    } else {
-      params.delete("systems");
-      params.delete("system");
-    }
-    params.delete("page");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    if (isDynamicFilter) updateUrlParams({ systems: newSystems });
   };
 
   const handleSeveritiesChange = (newSeverities: string[]) => {
     setSelectedSeverities(newSeverities);
-    const params = new URLSearchParams(searchParams.toString());
-    if (newSeverities.length > 0) {
-      params.set("severities", newSeverities.join(","));
-    } else {
-      params.delete("severities");
-      params.delete("severity");
-    }
-    params.delete("page");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    if (isDynamicFilter) updateUrlParams({ severities: newSeverities });
   };
 
   const handleStatusesChange = (newStatuses: string[]) => {
     setSelectedStatuses(newStatuses);
-    const params = new URLSearchParams(searchParams.toString());
-    if (newStatuses.length > 0) {
-      params.set("statuses", newStatuses.join(","));
-    } else {
-      params.delete("statuses");
-      params.delete("status");
-    }
-    params.delete("page");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    if (isDynamicFilter) updateUrlParams({ statuses: newStatuses });
   };
 
+  // Apenas aplica o filtro dinâmico de data inicial quando completo por inteiro (YYYY-MM-DD) ou limpo ("")
   const handleStartDateChange = (val: string) => {
     setStartDate(val);
-    const params = new URLSearchParams(searchParams.toString());
-    if (val) {
-      params.set("startDate", val);
-    } else {
-      params.delete("startDate");
-      params.delete("from");
+    if (!isDynamicFilter) return;
+
+    if (val === "") {
+      updateUrlParams({ startIso: "" });
+    } else if (isCompleteDate(val)) {
+      const iso = computeStartTimestamp(val, startTime);
+      updateUrlParams({ startIso: iso });
     }
-    params.delete("page");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  // Apenas aplica o filtro dinâmico de horário inicial quando completo por inteiro (HH:mm) ou limpo ("")
+  const handleStartTimeChange = (val: string) => {
+    setStartTime(val);
+    if (!isDynamicFilter) return;
+
+    if (!isCompleteDate(startDate)) return;
+
+    if (val === "") {
+      const iso = computeStartTimestamp(startDate, "");
+      updateUrlParams({ startIso: iso });
+    } else if (isCompleteTime(val)) {
+      const iso = computeStartTimestamp(startDate, val);
+      updateUrlParams({ startIso: iso });
+    }
+  };
+
+  // Apenas aplica o filtro dinâmico de data final quando completo por inteiro (YYYY-MM-DD) ou limpo ("")
   const handleEndDateChange = (val: string) => {
     setEndDate(val);
-    const params = new URLSearchParams(searchParams.toString());
-    if (val) {
-      params.set("endDate", val);
-    } else {
-      params.delete("endDate");
-      params.delete("to");
+    if (!isDynamicFilter) return;
+
+    if (val === "") {
+      updateUrlParams({ endIso: "" });
+    } else if (isCompleteDate(val)) {
+      const iso = computeEndTimestamp(val, endTime);
+      updateUrlParams({ endIso: iso });
     }
-    params.delete("page");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  // Apenas aplica o filtro dinâmico de horário final quando completo por inteiro (HH:mm) ou limpo ("")
+  const handleEndTimeChange = (val: string) => {
+    setEndTime(val);
+    if (!isDynamicFilter) return;
+
+    if (!isCompleteDate(endDate)) return;
+
+    if (val === "") {
+      const iso = computeEndTimestamp(endDate, "");
+      updateUrlParams({ endIso: iso });
+    } else if (isCompleteTime(val)) {
+      const iso = computeEndTimestamp(endDate, val);
+      updateUrlParams({ endIso: iso });
+    }
   };
 
   const handlePageChange = (newPage: number) => {
@@ -508,13 +742,63 @@ export function AuditAdmin() {
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  // Aplicação manual de filtros (quando o filtro dinâmico estiver desativado)
+  const handleApplyManualFilters = () => {
+    let nextSearches = searchTags;
+    if (searchInput.trim() && !searchTags.includes(searchInput.trim())) {
+      nextSearches = [...searchTags, searchInput.trim()];
+      setSearchTags(nextSearches);
+      setSearchInput("");
+    }
+
+    let nextActions = actions;
+    if (actionInput.trim() && !actions.includes(actionInput.trim())) {
+      nextActions = [...actions, actionInput.trim()];
+      setActions(nextActions);
+      setActionInput("");
+    }
+
+    let nextActors = actors;
+    if (actorInput.trim() && !actors.includes(actorInput.trim())) {
+      nextActors = [...actors, actorInput.trim()];
+      setActors(nextActors);
+      setActorInput("");
+    }
+
+    const startIso = computeStartTimestamp(startDate, startTime);
+    const endIso = computeEndTimestamp(endDate, endTime);
+
+    updateUrlParams({
+      searchTags: nextSearches,
+      actions: nextActions,
+      actors: nextActors,
+      startIso,
+      endIso,
+    });
+  };
+
+  // Alterna o modo dinâmico (com ícone de raio)
+  const handleToggleDynamicFilter = () => {
+    const nextMode = !isDynamicFilter;
+    setIsDynamicFilter(nextMode);
+    if (nextMode) {
+      // Ao reativar o modo dinâmico, aplica imediatamente os filtros pendentes
+      handleApplyManualFilters();
+    }
+  };
+
   // Limpa todos os filtros
   const clearFilters = () => {
-    setSearch("");
-    setAction("");
-    setActor("");
+    setSearchTags([]);
+    setSearchInput("");
+    setActions([]);
+    setActionInput("");
+    setActors([]);
+    setActorInput("");
     setStartDate("");
+    setStartTime("");
     setEndDate("");
+    setEndTime("");
     setSelectedSystems([]);
     setSelectedSeverities([]);
     setSelectedStatuses([]);
@@ -524,29 +808,46 @@ export function AuditAdmin() {
   // Contagem de filtros ativos
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (search.trim()) count++;
-    if (action.trim()) count++;
-    if (actor.trim()) count++;
+    count += searchTags.length;
+    count += actions.length;
+    count += actors.length;
     if (startDate) count++;
     if (endDate) count++;
     if (selectedSystems.length > 0) count++;
     if (selectedSeverities.length > 0) count++;
     if (selectedStatuses.length > 0) count++;
     return count;
-  }, [search, action, actor, startDate, endDate, selectedSystems, selectedSeverities, selectedStatuses]);
+  }, [
+    searchTags,
+    actions,
+    actors,
+    startDate,
+    endDate,
+    selectedSystems,
+    selectedSeverities,
+    selectedStatuses,
+  ]);
 
   // Contagem de filtros avançados (escondidos sob o botão expansível de filtros)
   const advancedFiltersCount = useMemo(() => {
     let count = 0;
-    if (action.trim()) count++;
-    if (actor.trim()) count++;
+    count += actions.length;
+    count += actors.length;
     if (startDate) count++;
     if (endDate) count++;
     if (selectedSystems.length > 0) count++;
     if (selectedSeverities.length > 0) count++;
     if (selectedStatuses.length > 0) count++;
     return count;
-  }, [action, actor, startDate, endDate, selectedSystems, selectedSeverities, selectedStatuses]);
+  }, [
+    actions,
+    actors,
+    startDate,
+    endDate,
+    selectedSystems,
+    selectedSeverities,
+    selectedStatuses,
+  ]);
 
   // Dicionário de nomes amigáveis das plataformas (Supabase / MongoDB)
   const dynamicPlatformNames = useMemo(() => {
@@ -662,20 +963,58 @@ export function AuditAdmin() {
         {/* Barra de Filtros e Busca Completa */}
         <div className="relative z-20 flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 shadow-xl backdrop-blur-md">
           {/* Linha Principal: Busca Livre + Botão de Filtros + Ações */}
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-            {/* Input de Busca Geral */}
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+            {/* Input de Busca Geral com suporte a múltiplos termos (+) */}
             <div className="relative flex-1">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar por ator, alvo, ação, e-mail, IP ou ID..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") flushTextFilters();
-                }}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 outline-none transition focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
-              />
+              <div className="relative flex items-center">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Buscar por ator, alvo, ação, e-mail, IP ou ID..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (searchInput.trim()) {
+                        handleAddSearch();
+                      } else if (!isDynamicFilter) {
+                        handleApplyManualFilters();
+                      }
+                    }
+                  }}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-11 text-sm text-white placeholder-slate-500 outline-none transition focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddSearch}
+                  disabled={!searchInput.trim()}
+                  title="Adicionar termo de busca (+)"
+                  className="filter-add-btn absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
+                >
+                  <Plus size={15} strokeWidth={2.5} />
+                </button>
+              </div>
+              {searchTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {searchTags.map((term, idx) => (
+                    <span
+                      key={idx}
+                      className="audit-search-tag inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-2 py-0.5 text-xs text-slate-200"
+                    >
+                      <span className="truncate max-w-[200px]">{term}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSearch(idx)}
+                        className="text-slate-400 hover:text-white"
+                        title="Remover termo"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Ações da Barra: Botão Filtros, Status e Limpar */}
@@ -773,71 +1112,205 @@ export function AuditAdmin() {
                   />
                 </div>
 
-                {/* 4. Ação / Categoria */}
+                {/* 4. Ação / Categoria com botão + */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                     Ação ou Categoria
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: product.updated, auth..."
-                    value={action}
-                    onChange={(e) => setAction(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") flushTextFilters();
-                    }}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition"
-                  />
+                  <div className="relative flex items-center">
+                    <input
+                      type="text"
+                      placeholder="Ex: product.updated, auth..."
+                      value={actionInput}
+                      onChange={(e) => setActionInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddAction();
+                        }
+                      }}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-3 pr-10 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddAction}
+                      disabled={!actionInput.trim()}
+                      title="Adicionar ação (+)"
+                      className="filter-add-btn absolute right-1.5 top-1/2 -translate-y-1/2 h-6 w-6"
+                    >
+                      <Plus size={13} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                  {actions.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {actions.map((act, idx) => (
+                        <span
+                          key={idx}
+                          className="audit-filter-chip inline-flex items-center gap-1 rounded-md bg-cyan-950/80 border border-cyan-800/60 px-2 py-0.5 text-[11px] font-medium text-cyan-200"
+                        >
+                          <span className="truncate max-w-[150px]">{act}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAction(idx)}
+                            className="text-cyan-400 hover:text-white"
+                            title="Remover ação"
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* 5. Ator Responsável */}
+                {/* 5. Ator Responsável com botão + */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                     Ator Responsável
                   </label>
-                  <div className="relative">
-                    <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <div className="relative flex items-center">
+                    <User size={13} className="absolute left-3 text-slate-500 pointer-events-none" />
                     <input
                       type="text"
                       placeholder="Nome, e-mail, role ou ID..."
-                      value={actor}
-                      onChange={(e) => setActor(e.target.value)}
+                      value={actorInput}
+                      onChange={(e) => setActorInput(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") flushTextFilters();
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddActor();
+                        }
                       }}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-8 pr-3 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-8 pr-10 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition"
                     />
+                    <button
+                      type="button"
+                      onClick={handleAddActor}
+                      disabled={!actorInput.trim()}
+                      title="Adicionar ator (+)"
+                      className="filter-add-btn absolute right-1.5 top-1/2 -translate-y-1/2 h-6 w-6"
+                    >
+                      <Plus size={13} strokeWidth={2.5} />
+                    </button>
                   </div>
+                  {actors.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {actors.map((act, idx) => (
+                        <span
+                          key={idx}
+                          className="audit-filter-chip inline-flex items-center gap-1 rounded-md bg-cyan-950/80 border border-cyan-800/60 px-2 py-0.5 text-[11px] font-medium text-cyan-200"
+                        >
+                          <span className="truncate max-w-[150px]">{act}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveActor(idx)}
+                            className="text-cyan-400 hover:text-white"
+                            title="Remover ator"
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* 6. Período do Registro (De / Até) */}
+                {/* 6. Período do Registro (Data e Horário separados) */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Calendar size={12} className="text-cyan-400" />
                     Período do Registro
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-slate-500 shrink-0">De:</span>
+                  <div className="flex flex-col gap-2">
+                    {/* Início (De) */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-medium text-slate-400 w-6 shrink-0">De:</span>
                       <input
-                        type="datetime-local"
+                        type="date"
                         value={startDate}
                         onChange={(e) => handleStartDateChange(e.target.value)}
-                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 [color-scheme:dark]"
-                        title="Data e hora inicial"
+                        className="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 transition"
+                        title="Data inicial (preencha dia, mês e ano)"
+                      />
+                      <input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => handleStartTimeChange(e.target.value)}
+                        className="w-24 shrink-0 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 transition"
+                        title="Horário inicial (opcional)"
                       />
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-slate-500 shrink-0">Até:</span>
+
+                    {/* Fim (Até) */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-medium text-slate-400 w-6 shrink-0">Até:</span>
                       <input
-                        type="datetime-local"
+                        type="date"
                         value={endDate}
                         onChange={(e) => handleEndDateChange(e.target.value)}
-                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 [color-scheme:dark]"
-                        title="Data e hora final"
+                        className="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 transition"
+                        title="Data final (preencha dia, mês e ano)"
+                      />
+                      <input
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => handleEndTimeChange(e.target.value)}
+                        className="w-24 shrink-0 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 transition"
+                        title="Horário final (opcional)"
                       />
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Barra inferior de Ações: Toggle Filtro Dinâmico (Raio) e Botão Aplicar Filtros */}
+              <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                  {isDynamicFilter ? (
+                    <>
+                      <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                      <span>Filtro dinâmico ativo: os registros atualizam automaticamente em tempo real.</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="h-2 w-2 rounded-full bg-slate-500" />
+                      <span>Filtro dinâmico pausado: ajuste os campos e clique em &quot;Aplicar Filtros&quot;.</span>
+                    </>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  {/* Botão Sutil de Filtro Dinâmico com ícone de raio */}
+                  <button
+                    type="button"
+                    onClick={handleToggleDynamicFilter}
+                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                      isDynamicFilter
+                        ? "border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 shadow-sm shadow-amber-500/10"
+                        : "border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                    }`}
+                    title={
+                      isDynamicFilter
+                        ? "Desativar filtro dinâmico (habilitar botão manual de aplicar)"
+                        : "Ativar filtro dinâmico (atualização em tempo real)"
+                    }
+                  >
+                    <Zap size={14} className={isDynamicFilter ? "fill-amber-400 text-amber-400" : "text-slate-400"} />
+                    <span>{isDynamicFilter ? "Filtro Dinâmico: Ativado" : "Filtro Dinâmico: Desativado"}</span>
+                  </button>
+
+                  {/* Novo Botão Aplicar Filtros (habilitado/visível quando filtro dinâmico está desativado) */}
+                  {!isDynamicFilter && (
+                    <button
+                      type="button"
+                      onClick={handleApplyManualFilters}
+                      disabled={loading}
+                      className="flex items-center gap-1.5 rounded-lg border border-cyan-500/50 bg-cyan-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-cyan-500/20 hover:bg-cyan-500 transition disabled:opacity-50"
+                    >
+                      <Check size={14} />
+                      <span>Aplicar Filtros</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -953,14 +1426,14 @@ export function AuditAdmin() {
                             {event.targets && event.targets.length > 0 ? (
                               <>
                                 <span
-                                  className="rounded border border-slate-700 bg-slate-800/80 px-1.5 py-0.5 text-[10px] text-slate-300 truncate max-w-[105px]"
+                                  className="audit-target-badge rounded border px-1.5 py-0.5 text-[10px] font-medium truncate max-w-[105px]"
                                   title={event.targets[0].label || `${event.targets[0].type}:${event.targets[0].id}`}
                                 >
                                   {event.targets[0].label || `${event.targets[0].type}:${event.targets[0].id}`}
                                 </span>
                                 {event.targets.length > 1 && (
                                   <span
-                                    className="shrink-0 rounded bg-slate-800 px-1 py-0.5 text-[10px] text-slate-400 font-mono"
+                                    className="audit-target-badge-count shrink-0 rounded border px-1 py-0.5 text-[10px] font-mono"
                                     title={event.targets.slice(1).map((t) => t.label || `${t.type}:${t.id}`).join(", ")}
                                   >
                                     +{event.targets.length - 1}
@@ -977,12 +1450,12 @@ export function AuditAdmin() {
                         <td className="whitespace-nowrap px-3.5 py-2 overflow-hidden">
                           <div className="flex items-center gap-1.5">
                             <span
-                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold shrink-0 ${
+                              className={`rounded border px-1.5 py-0.5 text-[10px] font-bold shrink-0 ${
                                 event.severity === "CRITICAL"
-                                  ? "bg-rose-500/20 text-rose-300"
+                                  ? "border-rose-500/30 bg-rose-500/20 text-rose-300"
                                   : event.severity === "WARNING"
-                                    ? "bg-amber-500/20 text-amber-300"
-                                    : "bg-slate-700/50 text-slate-300"
+                                    ? "border-amber-500/30 bg-amber-500/20 text-amber-300"
+                                    : "audit-severity-info border-slate-600/40 bg-slate-700/50 text-slate-300"
                               }`}
                             >
                               {event.severity}
@@ -1182,11 +1655,11 @@ export function AuditAdmin() {
                       {selectedEvent.targets.map((t, idx) => (
                         <div
                           key={idx}
-                          className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white"
+                          className="audit-modal-target flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white"
                         >
                           <span className="text-cyan-400 font-mono text-[11px]">{t.type}</span>
-                          <span className="font-medium">{t.label}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">#{t.id}</span>
+                          <span className="font-medium">{t.label || t.id}</span>
+                          {t.label && <span className="text-[10px] text-slate-400 font-mono">({t.id})</span>}
                         </div>
                       ))}
                     </div>

@@ -98,9 +98,9 @@ export async function GET(request: Request) {
     }
 
     const url = new URL(request.url);
-    const search = url.searchParams.get("search")?.trim();
-    const action = url.searchParams.get("action")?.trim();
-    const actor = url.searchParams.get("actor")?.trim();
+    const search = url.searchParams.get("search")?.trim() || url.searchParams.get("searches")?.trim();
+    const action = url.searchParams.get("action")?.trim() || url.searchParams.get("actions")?.trim();
+    const actor = url.searchParams.get("actor")?.trim() || url.searchParams.get("actors")?.trim();
     const startDate = url.searchParams.get("startDate")?.trim() || url.searchParams.get("from")?.trim();
     const endDate = url.searchParams.get("endDate")?.trim() || url.searchParams.get("to")?.trim();
 
@@ -172,31 +172,61 @@ export async function GET(request: Request) {
       }
     }
 
-    // 5. Ação/Categoria e Ator (filtros de texto livre com $or individual)
+    // 5. Ação/Categoria e Ator (filtros de texto com suporte a múltiplos termos separados por vírgula)
     const textConditions: Filter<AuditEnvelope>[] = [];
 
     if (action) {
-      const escapedAction = action.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const actionRegex = new RegExp(escapedAction, "i");
-      textConditions.push({
-        $or: [
-          { action: actionRegex },
-          { category: actionRegex },
-        ],
-      });
+      const actionList = action.split(",").map((s) => s.trim()).filter(Boolean);
+      if (actionList.length === 1) {
+        const escapedAction = actionList[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const actionRegex = new RegExp(escapedAction, "i");
+        textConditions.push({
+          $or: [
+            { action: actionRegex },
+            { category: actionRegex },
+          ],
+        });
+      } else if (actionList.length > 1) {
+        textConditions.push({
+          $or: actionList.flatMap((act) => {
+            const escaped = act.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const reg = new RegExp(escaped, "i");
+            return [
+              { action: reg },
+              { category: reg },
+            ];
+          }),
+        });
+      }
     }
 
     if (actor) {
-      const escapedActor = actor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const actorRegex = new RegExp(escapedActor, "i");
-      textConditions.push({
-        $or: [
-          { "actor.name": actorRegex } as any,
-          { "actor.email": actorRegex } as any,
-          { "actor.userId": actorRegex } as any,
-          { "actor.role": actorRegex } as any,
-        ],
-      });
+      const actorList = actor.split(",").map((s) => s.trim()).filter(Boolean);
+      if (actorList.length === 1) {
+        const escapedActor = actorList[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const actorRegex = new RegExp(escapedActor, "i");
+        textConditions.push({
+          $or: [
+            { "actor.name": actorRegex } as any,
+            { "actor.email": actorRegex } as any,
+            { "actor.userId": actorRegex } as any,
+            { "actor.role": actorRegex } as any,
+          ],
+        });
+      } else if (actorList.length > 1) {
+        textConditions.push({
+          $or: actorList.flatMap((act) => {
+            const escaped = act.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const reg = new RegExp(escaped, "i");
+            return [
+              { "actor.name": reg } as any,
+              { "actor.email": reg } as any,
+              { "actor.userId": reg } as any,
+              { "actor.role": reg } as any,
+            ];
+          }),
+        });
+      }
     }
 
     if (textConditions.length === 1) {
@@ -205,9 +235,10 @@ export async function GET(request: Request) {
       filter.$and = textConditions;
     }
 
-    // 6. Busca textual geral
+    // 6. Busca textual geral (suporta múltiplos termos)
     if (search) {
-      const searchWords = tokenize(search);
+      const searchTerms = search.split(",").map((s) => s.trim()).filter(Boolean);
+      const searchWords = searchTerms.flatMap((term) => tokenize(term));
       if (searchWords.length > 0) {
         filter.searchTokens = { $all: searchWords };
       }
