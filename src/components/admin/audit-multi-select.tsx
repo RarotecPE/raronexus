@@ -16,6 +16,8 @@ interface MultiSelectDropdownProps {
   selected: string[];
   onChange: (selected: string[]) => void;
   showSearch?: boolean;
+  align?: "left" | "right";
+  fullWidth?: boolean;
 }
 
 export function MultiSelectDropdown({
@@ -24,6 +26,8 @@ export function MultiSelectDropdown({
   selected,
   onChange,
   showSearch = false,
+  align = "right",
+  fullWidth = false,
 }: MultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -68,30 +72,36 @@ export function MultiSelectDropdown({
   const hasSelection = selected.length > 0;
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className={`relative ${fullWidth ? "w-full" : ""}`} ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition outline-none ${
+        className={`flex items-center ${fullWidth ? "w-full justify-between" : "gap-2"} rounded-lg border px-3 py-2 text-xs font-medium transition outline-none ${
           hasSelection
             ? "border-cyan-500/50 bg-slate-900 text-cyan-300 shadow-sm shadow-cyan-500/10"
             : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-600 hover:text-white"
         }`}
       >
-        <span>{label}</span>
-        {hasSelection && (
-          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500/20 px-1 text-[10px] font-bold text-cyan-300 border border-cyan-500/40">
-            {selected.length}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 truncate">
+          <span className="truncate">{label}</span>
+          {hasSelection && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500/20 px-1 text-[10px] font-bold text-cyan-300 border border-cyan-500/40">
+              {selected.length}
+            </span>
+          )}
+        </div>
         <ChevronDown
           size={14}
-          className={`transition-transform duration-150 ${isOpen ? "rotate-180 text-cyan-400" : "text-slate-400"}`}
+          className={`shrink-0 transition-transform duration-150 ${isOpen ? "rotate-180 text-cyan-400" : "text-slate-400"}`}
         />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 min-w-[220px] max-w-[320px] rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl backdrop-blur-md">
+        <div
+          className={`absolute top-full z-[100] mt-1.5 min-w-[220px] max-w-[320px] rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl backdrop-blur-md ${
+            align === "left" || fullWidth ? "left-0" : "right-0"
+          }`}
+        >
           {showSearch && options.length > 5 && (
             <div className="relative mb-2">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />

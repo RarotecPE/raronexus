@@ -17,6 +17,33 @@ import type { Filter } from "mongodb";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { ApplicationRepository } from "@/lib/api/repositories/application-repository";
 
+function normalizeSystemKey(raw?: string | null): string {
+  if (!raw) return "";
+  const lower = raw.toLowerCase().trim();
+  if (lower.startsWith("rarostock")) return "rarostock";
+  if (lower.startsWith("raronexus")) return "raronexus";
+  if (lower.startsWith("rarogestao")) return "rarogestao";
+  if (lower.startsWith("raroclients")) return "raroclients";
+  if (lower.startsWith("raropay")) return "raropay";
+  if (lower.startsWith("rarotickets")) return "rarotickets";
+  return lower.replace(/[_-](homolog|prod|producao|dev|teste).*$/, "");
+}
+
+function getSystemVariants(rawKey: string): string[] {
+  const canonical = normalizeSystemKey(rawKey);
+  const variants = new Set<string>([
+    rawKey.toLowerCase().trim(),
+    canonical,
+    `${canonical}_homolog`,
+    `${canonical}-homolog`,
+    `${canonical}_prod`,
+    `${canonical}-prod`,
+    `${canonical}_dev`,
+    `${canonical}-dev`,
+  ]);
+  return Array.from(variants);
+}
+
 export async function GET(request: Request) {
   return handleApi(async () => {
     rateLimit(request, 60, 60_000, "audit-admin");
@@ -73,6 +100,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const search = url.searchParams.get("search")?.trim();
     const action = url.searchParams.get("action")?.trim();
+    const actor = url.searchParams.get("actor")?.trim();
     const startDate = url.searchParams.get("startDate")?.trim() || url.searchParams.get("from")?.trim();
     const endDate = url.searchParams.get("endDate")?.trim() || url.searchParams.get("to")?.trim();
 
@@ -91,13 +119,23 @@ export async function GET(request: Request) {
     // Monta filtro MongoDB
     const filter: Filter<AuditEnvelope> = {};
 
-    // 1. Sistemas múltiplos
+    // 1. Sistemas múltiplos (com expansão de variantes e aliases canônicos)
     if (systemsParam && systemsParam !== "all") {
-      const systemsList = systemsParam.split(",").map((s) => s.trim()).filter(Boolean);
-      if (systemsList.length === 1) {
-        filter.system = systemsList[0] as any;
-      } else if (systemsList.length > 1) {
-        filter.system = { $in: systemsList } as any;
+      const requestedSystems = systemsParam.split(",").map((s) => s.trim()).filter(Boolean);
+      const expandedSystems = new Set<string>();
+
+      for (const reqSys of requestedSystems) {
+        const variants = getSystemVariants(reqSys);
+        for (const v of variants) {
+          expandedSystems.add(v);
+        }
+      }
+
+      const matchSystems = Array.from(expandedSystems);
+      if (matchSystems.length === 1) {
+        filter.system = matchSystems[0] as any;
+      } else if (matchSystems.length > 1) {
+        filter.system = { $in: matchSystems } as any;
       }
     }
 
@@ -134,14 +172,37 @@ export async function GET(request: Request) {
       }
     }
 
-    // 5. Ação ou Categoria (texto livre digitado)
+    // 5. Ação/Categoria e Ator (filtros de texto livre com $or individual)
+    const textConditions: Filter<AuditEnvelope>[] = [];
+
     if (action) {
-      const escaped = action.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(escaped, "i");
-      filter.$or = [
-        { action: regex },
-        { category: regex },
-      ];
+      const escapedAction = action.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const actionRegex = new RegExp(escapedAction, "i");
+      textConditions.push({
+        $or: [
+          { action: actionRegex },
+          { category: actionRegex },
+        ],
+      });
+    }
+
+    if (actor) {
+      const escapedActor = actor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const actorRegex = new RegExp(escapedActor, "i");
+      textConditions.push({
+        $or: [
+          { "actor.name": actorRegex } as any,
+          { "actor.email": actorRegex } as any,
+          { "actor.userId": actorRegex } as any,
+          { "actor.role": actorRegex } as any,
+        ],
+      });
+    }
+
+    if (textConditions.length === 1) {
+      Object.assign(filter, textConditions[0]);
+    } else if (textConditions.length > 1) {
+      filter.$and = textConditions;
     }
 
     // 6. Busca textual geral
@@ -174,19 +235,34 @@ export async function GET(request: Request) {
         .toArray(),
     ]);
 
-    // Plataformas dinâmicas cadastradas no RaroNexus (Supabase)
+    // Plataformas cadastradas mapeadas para chaves canônicas (evita dessincronização e duplicatas)
+    const DEFAULT_PLATFORMS: Array<{ clientId: string; name: string }> = [
+      { clientId: "raronexus", name: "RaroNexus" },
+      { clientId: "rarostock", name: "Rarostock" },
+      { clientId: "rarogestao", name: "RaroGestão" },
+      { clientId: "raroclients", name: "RaroClients" },
+      { clientId: "raropay", name: "RaroPay" },
+      { clientId: "rarotickets", name: "RaroTickets" },
+    ];
+
     const platformsMap = new Map<string, { clientId: string; name: string }>();
+    for (const p of DEFAULT_PLATFORMS) {
+      platformsMap.set(p.clientId, { ...p });
+    }
+
     try {
       const supabase = createAdminSupabaseClient();
       const repo = new ApplicationRepository(supabase);
       const registeredApps = await repo.listAll();
       for (const app of registeredApps) {
-        if (app.client_id) {
-          platformsMap.set(app.client_id, {
-            clientId: app.client_id,
-            name: app.nome || app.client_id,
-          });
-        }
+        if (!app.client_id) continue;
+        const canonical = normalizeSystemKey(app.client_id);
+        const existing = platformsMap.get(canonical);
+        const friendlyName = app.nome || existing?.name || canonical;
+        platformsMap.set(canonical, {
+          clientId: canonical,
+          name: friendlyName,
+        });
       }
     } catch (platformErr) {
       console.warn("[Audit Route] Erro ao carregar aplicações cadastradas:", platformErr);
@@ -194,9 +270,11 @@ export async function GET(request: Request) {
 
     // Adiciona qualquer sistema que já tenha emitido eventos no banco (retrocompatibilidade)
     for (const item of systemAgg) {
-      if (item._id && !platformsMap.has(item._id)) {
-        platformsMap.set(item._id, {
-          clientId: item._id,
+      if (!item._id) continue;
+      const canonical = normalizeSystemKey(item._id);
+      if (!platformsMap.has(canonical)) {
+        platformsMap.set(canonical, {
+          clientId: canonical,
           name: item._id,
         });
       }
@@ -215,7 +293,10 @@ export async function GET(request: Request) {
 
     const bySystem: Record<string, number> = {};
     for (const item of systemAgg) {
-      if (item._id) bySystem[item._id] = item.count;
+      if (item._id) {
+        const canonical = normalizeSystemKey(item._id);
+        bySystem[canonical] = (bySystem[canonical] || 0) + item.count;
+      }
     }
 
     const bySeverity: Record<string, number> = {

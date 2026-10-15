@@ -88,6 +88,18 @@ const SYSTEM_LABELS: Record<AuditSystem, { label: string; color: string; border:
   },
 };
 
+function normalizeSystemKey(raw?: string | null): string {
+  if (!raw) return "";
+  const lower = raw.toLowerCase().trim();
+  if (lower.startsWith("rarostock")) return "rarostock";
+  if (lower.startsWith("raronexus")) return "raronexus";
+  if (lower.startsWith("rarogestao")) return "rarogestao";
+  if (lower.startsWith("raroclients")) return "raroclients";
+  if (lower.startsWith("raropay")) return "raropay";
+  if (lower.startsWith("rarotickets")) return "rarotickets";
+  return lower.replace(/[_-](homolog|prod|producao|dev|teste).*$/, "");
+}
+
 function formatIsoDate(iso: string) {
   try {
     const d = new Date(iso);
@@ -228,6 +240,7 @@ export function AuditAdmin() {
   // Estados dos inputs de filtro (editados antes de clicar em "Aplicar Filtros")
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [action, setAction] = useState(() => searchParams.get("action") || "");
+  const [actor, setActor] = useState(() => searchParams.get("actor") || "");
   const [startDate, setStartDate] = useState(
     () => searchParams.get("startDate") || searchParams.get("from") || ""
   );
@@ -237,7 +250,7 @@ export function AuditAdmin() {
   const [selectedSystems, setSelectedSystems] = useState<string[]>(() => {
     const param = searchParams.get("systems") || searchParams.get("system");
     return param && param !== "all"
-      ? param.split(",").map((s) => s.trim()).filter(Boolean)
+      ? param.split(",").map((s) => normalizeSystemKey(s.trim())).filter(Boolean)
       : [];
   });
   const [selectedSeverities, setSelectedSeverities] = useState<string[]>(() => {
@@ -257,21 +270,49 @@ export function AuditAdmin() {
   const [selectedEvent, setSelectedEvent] = useState<AuditEnvelope | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Sincroniza estados dos inputs quando a URL mudar (ex: botão voltar/avançar do navegador)
+  // Estado do painel colapsável de filtros avançados
+  const [isFiltersOpen, setIsFiltersOpen] = useState(() => {
+    return Boolean(
+      searchParams.get("action") ||
+      searchParams.get("actor") ||
+      searchParams.get("startDate") ||
+      searchParams.get("from") ||
+      searchParams.get("endDate") ||
+      searchParams.get("to") ||
+      searchParams.get("systems") ||
+      searchParams.get("system") ||
+      searchParams.get("severities") ||
+      searchParams.get("severity") ||
+      searchParams.get("statuses") ||
+      searchParams.get("status")
+    );
+  });
+
+  // Sincroniza estados locais caso a URL mude externamente (botão voltar/avançar do navegador ou clearFilters)
   useEffect(() => {
-    setSearch(searchParams.get("search") || "");
-    setAction(searchParams.get("action") || "");
-    setStartDate(searchParams.get("startDate") || searchParams.get("from") || "");
-    setEndDate(searchParams.get("endDate") || searchParams.get("to") || "");
-
+    const urlSearch = searchParams.get("search") || "";
+    const urlAction = searchParams.get("action") || "";
+    const urlActor = searchParams.get("actor") || "";
+    const urlStart = searchParams.get("startDate") || searchParams.get("from") || "";
+    const urlEnd = searchParams.get("endDate") || searchParams.get("to") || "";
     const sys = searchParams.get("systems") || searchParams.get("system");
-    setSelectedSystems(sys && sys !== "all" ? sys.split(",").map((s) => s.trim()).filter(Boolean) : []);
-
     const sev = searchParams.get("severities") || searchParams.get("severity");
-    setSelectedSeverities(sev && sev !== "all" ? sev.split(",").map((s) => s.trim()).filter(Boolean) : []);
-
     const sta = searchParams.get("statuses") || searchParams.get("status");
-    setSelectedStatuses(sta && sta !== "all" ? sta.split(",").map((s) => s.trim()).filter(Boolean) : []);
+
+    setSearch((prev) => (prev !== urlSearch ? urlSearch : prev));
+    setAction((prev) => (prev !== urlAction ? urlAction : prev));
+    setActor((prev) => (prev !== urlActor ? urlActor : prev));
+    setStartDate((prev) => (prev !== urlStart ? urlStart : prev));
+    setEndDate((prev) => (prev !== urlEnd ? urlEnd : prev));
+
+    const parsedSys = sys && sys !== "all" ? sys.split(",").map((s) => normalizeSystemKey(s.trim())).filter(Boolean) : [];
+    setSelectedSystems(parsedSys);
+
+    const parsedSev = sev && sev !== "all" ? sev.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    setSelectedSeverities(parsedSev);
+
+    const parsedSta = sta && sta !== "all" ? sta.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    setSelectedStatuses(parsedSta);
   }, [searchParams]);
 
   // Consulta à API baseada nos searchParams da URL
@@ -281,6 +322,7 @@ export function AuditAdmin() {
       const params = new URLSearchParams();
       const qSearch = searchParams.get("search");
       const qAction = searchParams.get("action");
+      const qActor = searchParams.get("actor");
       const qStart = searchParams.get("startDate") || searchParams.get("from");
       const qEnd = searchParams.get("endDate") || searchParams.get("to");
       const qSystems = searchParams.get("systems") || searchParams.get("system");
@@ -291,6 +333,7 @@ export function AuditAdmin() {
 
       if (qSearch?.trim()) params.set("search", qSearch.trim());
       if (qAction?.trim()) params.set("action", qAction.trim());
+      if (qActor?.trim()) params.set("actor", qActor.trim());
       if (qStart?.trim()) params.set("startDate", qStart.trim());
       if (qEnd?.trim()) params.set("endDate", qEnd.trim());
       if (qSystems && qSystems !== "all") params.set("systems", qSystems);
@@ -317,20 +360,151 @@ export function AuditAdmin() {
     fetchAuditEvents();
   }, [fetchAuditEvents]);
 
-  // Aplica filtros atualizando a URL
-  const applyFilters = (newPage = 1, newLimit?: number) => {
-    const currentLimit = newLimit ?? (parseInt(searchParams.get("limit") || "25", 10) || 25);
-    const params = new URLSearchParams();
-    if (search.trim()) params.set("search", search.trim());
-    if (action.trim()) params.set("action", action.trim());
-    if (startDate) params.set("startDate", startDate);
-    if (endDate) params.set("endDate", endDate);
-    if (selectedSystems.length > 0) params.set("systems", selectedSystems.join(","));
-    if (selectedSeverities.length > 0) params.set("severities", selectedSeverities.join(","));
-    if (selectedStatuses.length > 0) params.set("statuses", selectedStatuses.join(","));
-    if (newPage > 1) params.set("page", String(newPage));
-    if (currentLimit !== 25) params.set("limit", String(currentLimit));
+  // Debounce automático para filtros de texto livre (busca geral, ação/categoria e ator)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const urlSearch = searchParams.get("search") || "";
+      const urlAction = searchParams.get("action") || "";
+      const urlActor = searchParams.get("actor") || "";
 
+      if (
+        search.trim() !== urlSearch.trim() ||
+        action.trim() !== urlAction.trim() ||
+        actor.trim() !== urlActor.trim()
+      ) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (search.trim()) {
+          params.set("search", search.trim());
+        } else {
+          params.delete("search");
+        }
+
+        if (action.trim()) {
+          params.set("action", action.trim());
+        } else {
+          params.delete("action");
+        }
+
+        if (actor.trim()) {
+          params.set("actor", actor.trim());
+        } else {
+          params.delete("actor");
+        }
+
+        params.delete("page");
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [search, action, actor, searchParams, pathname, router]);
+
+  // Aplicação imediata dos campos de texto (ex: ao pressionar Enter)
+  const flushTextFilters = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (search.trim()) {
+      params.set("search", search.trim());
+    } else {
+      params.delete("search");
+    }
+    if (action.trim()) {
+      params.set("action", action.trim());
+    } else {
+      params.delete("action");
+    }
+    if (actor.trim()) {
+      params.set("actor", actor.trim());
+    } else {
+      params.delete("actor");
+    }
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  // Handlers reativos dinâmicos para cada filtro
+  const handleSystemsChange = (newSystems: string[]) => {
+    setSelectedSystems(newSystems);
+    const params = new URLSearchParams(searchParams.toString());
+    if (newSystems.length > 0) {
+      params.set("systems", newSystems.join(","));
+    } else {
+      params.delete("systems");
+      params.delete("system");
+    }
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleSeveritiesChange = (newSeverities: string[]) => {
+    setSelectedSeverities(newSeverities);
+    const params = new URLSearchParams(searchParams.toString());
+    if (newSeverities.length > 0) {
+      params.set("severities", newSeverities.join(","));
+    } else {
+      params.delete("severities");
+      params.delete("severity");
+    }
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleStatusesChange = (newStatuses: string[]) => {
+    setSelectedStatuses(newStatuses);
+    const params = new URLSearchParams(searchParams.toString());
+    if (newStatuses.length > 0) {
+      params.set("statuses", newStatuses.join(","));
+    } else {
+      params.delete("statuses");
+      params.delete("status");
+    }
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleStartDateChange = (val: string) => {
+    setStartDate(val);
+    const params = new URLSearchParams(searchParams.toString());
+    if (val) {
+      params.set("startDate", val);
+    } else {
+      params.delete("startDate");
+      params.delete("from");
+    }
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleEndDateChange = (val: string) => {
+    setEndDate(val);
+    const params = new URLSearchParams(searchParams.toString());
+    if (val) {
+      params.set("endDate", val);
+    } else {
+      params.delete("endDate");
+      params.delete("to");
+    }
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (newPage > 1) {
+      params.set("page", String(newPage));
+    } else {
+      params.delete("page");
+    }
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (newLimit !== 25) {
+      params.set("limit", String(newLimit));
+    } else {
+      params.delete("limit");
+    }
+    params.delete("page");
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
@@ -338,6 +512,7 @@ export function AuditAdmin() {
   const clearFilters = () => {
     setSearch("");
     setAction("");
+    setActor("");
     setStartDate("");
     setEndDate("");
     setSelectedSystems([]);
@@ -351,36 +526,52 @@ export function AuditAdmin() {
     let count = 0;
     if (search.trim()) count++;
     if (action.trim()) count++;
+    if (actor.trim()) count++;
     if (startDate) count++;
     if (endDate) count++;
     if (selectedSystems.length > 0) count++;
     if (selectedSeverities.length > 0) count++;
     if (selectedStatuses.length > 0) count++;
     return count;
-  }, [search, action, startDate, endDate, selectedSystems, selectedSeverities, selectedStatuses]);
+  }, [search, action, actor, startDate, endDate, selectedSystems, selectedSeverities, selectedStatuses]);
+
+  // Contagem de filtros avançados (escondidos sob o botão expansível de filtros)
+  const advancedFiltersCount = useMemo(() => {
+    let count = 0;
+    if (action.trim()) count++;
+    if (actor.trim()) count++;
+    if (startDate) count++;
+    if (endDate) count++;
+    if (selectedSystems.length > 0) count++;
+    if (selectedSeverities.length > 0) count++;
+    if (selectedStatuses.length > 0) count++;
+    return count;
+  }, [action, actor, startDate, endDate, selectedSystems, selectedSeverities, selectedStatuses]);
+
+  // Dicionário de nomes amigáveis das plataformas (Supabase / MongoDB)
+  const dynamicPlatformNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (data?.platforms) {
+      for (const p of data.platforms) {
+        map[p.clientId] = p.name;
+      }
+    }
+    return map;
+  }, [data?.platforms]);
 
   // Opções dinâmicas de plataformas
   const systemOptions: MultiSelectOption[] = useMemo(() => {
     const dynamicPlatforms = data?.platforms || [];
     if (dynamicPlatforms.length > 0) {
-      return dynamicPlatforms.map((p) => {
-        const conf = SYSTEM_LABELS[p.clientId as AuditSystem];
-        return {
-          value: p.clientId,
-          label: p.name,
-          badge: conf ? conf.label : p.clientId,
-          badgeClass: conf
-            ? `${conf.border} ${conf.bg} ${conf.color} border`
-            : "border border-slate-700 bg-slate-800 text-slate-300",
-        };
-      });
+      return dynamicPlatforms.map((p) => ({
+        value: p.clientId,
+        label: p.name,
+      }));
     }
 
     return Object.entries(SYSTEM_LABELS).map(([sys, conf]) => ({
       value: sys,
       label: conf.label,
-      badge: conf.label,
-      badgeClass: `${conf.border} ${conf.bg} ${conf.color} border`,
     }));
   }, [data?.platforms]);
 
@@ -439,12 +630,7 @@ export function AuditAdmin() {
               <ShieldCheck size={28} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold tracking-tight text-white">Auditoria Unificada</h1>
-                <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-xs font-semibold text-cyan-300">
-                  Atlas & Redis
-                </span>
-              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-white">Auditoria Unificada</h1>
               <p className="text-sm text-slate-400">
                 Trilha centralizada de integridade criptográfica, conformidade LGPD e ações em todo o ecossistema RAROTEC.
               </p>
@@ -473,76 +659,11 @@ export function AuditAdmin() {
           />
         )}
 
-        {/* Cards de Métricas e KPIs */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-medium uppercase tracking-wider">Total Persistido</span>
-              <Database size={16} className="text-cyan-400" />
-            </div>
-            <p className="mt-2 text-2xl font-bold text-white">
-              {stats?.totalEvents ?? 0}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Coleção audit_events (MongoDB)</p>
-          </div>
-
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-medium uppercase tracking-wider">Fila Upstash Redis</span>
-              <Activity size={16} className={stats?.pendingQueueCount ? "text-amber-400" : "text-emerald-400"} />
-            </div>
-            <p className="mt-2 text-2xl font-bold text-white">
-              {stats?.pendingQueueCount ?? 0}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">Stream buffer pendente</p>
-          </div>
-
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-medium uppercase tracking-wider">Por Sistema</span>
-              <Layers size={16} className="text-blue-400" />
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {Object.entries(stats?.bySystem || {}).map(([sys, count]) => {
-                const conf = SYSTEM_LABELS[sys as AuditSystem];
-                return (
-                  <span
-                    key={sys}
-                    className={`rounded border px-1.5 py-0.5 text-[11px] font-semibold ${conf ? conf.border + " " + conf.bg + " " + conf.color : "border-slate-700 bg-slate-800 text-slate-300"}`}
-                  >
-                    {conf?.label || sys}: {count}
-                  </span>
-                );
-              })}
-              {Object.keys(stats?.bySystem || {}).length === 0 && (
-                <span className="text-xs text-slate-500">Nenhum evento</span>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-medium uppercase tracking-wider">Severidade</span>
-              <AlertTriangle size={16} className="text-rose-400" />
-            </div>
-            <div className="mt-2 flex items-center gap-2 text-xs font-medium">
-              <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
-                INFO: {stats?.bySeverity?.INFO ?? 0}
-              </span>
-              <span className="rounded bg-amber-500/15 px-2 py-0.5 text-amber-300">
-                WARN: {stats?.bySeverity?.WARNING ?? 0}
-              </span>
-              <span className="rounded bg-rose-500/15 px-2 py-0.5 text-rose-300">
-                CRIT: {stats?.bySeverity?.CRITICAL ?? 0}
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* Barra de Filtros e Busca Completa */}
-        <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 shadow-xl backdrop-blur-md">
-          {/* Linha 1: Busca Livre + Multi-seletores Dropdown */}
-          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative z-20 flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 shadow-xl backdrop-blur-md">
+          {/* Linha Principal: Busca Livre + Botão de Filtros + Ações */}
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            {/* Input de Busca Geral */}
             <div className="relative flex-1">
               <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -551,131 +672,202 @@ export function AuditAdmin() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") applyFilters(1);
+                  if (e.key === "Enter") flushTextFilters();
                 }}
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 outline-none transition focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
               />
             </div>
 
+            {/* Ações da Barra: Botão Filtros, Status e Limpar */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Multi-Select Plataformas / Sistemas */}
-              <MultiSelectDropdown
-                label="Sistemas"
-                options={systemOptions}
-                selected={selectedSystems}
-                onChange={setSelectedSystems}
-                showSearch
-              />
-
-              {/* Multi-Select Severidade */}
-              <MultiSelectDropdown
-                label="Severidade"
-                options={severityOptions}
-                selected={selectedSeverities}
-                onChange={setSelectedSeverities}
-              />
-
-              {/* Multi-Select Status */}
-              <MultiSelectDropdown
-                label="Status"
-                options={statusOptions}
-                selected={selectedStatuses}
-                onChange={setSelectedStatuses}
-              />
-            </div>
-          </div>
-
-          {/* Linha 2: Período (Data/Hora De / Até), Filtro Ação/Categoria e Botões de Ação */}
-          <div className="flex flex-col gap-3 pt-2 border-t border-slate-800/80 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Filtro Período (Data Inicial e Final com Horário) */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <Calendar size={13} className="text-cyan-400" />
-                  <span>De:</span>
-                  <input
-                    type="datetime-local"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 [color-scheme:dark]"
-                  />
+              {loading && (
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-cyan-400 mr-1">
+                  <RefreshCw size={12} className="animate-spin" />
+                  <span className="hidden sm:inline">Filtrando...</span>
                 </div>
-
-                <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <span>Até:</span>
-                  <input
-                    type="datetime-local"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 [color-scheme:dark]"
-                  />
-                </div>
-              </div>
-
-              {/* Filtro Ação / Categoria (texto livre) */}
-              <div className="flex items-center gap-1.5 text-xs text-slate-400 min-w-[220px]">
-                <span className="shrink-0">Ação / Categoria:</span>
-                <input
-                  type="text"
-                  placeholder="Ex: product.updated, inventory..."
-                  value={action}
-                  onChange={(e) => setAction(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") applyFilters(1);
-                  }}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-500"
-                />
-              </div>
-            </div>
-
-            {/* Botões Aplicar Filtros e Limpar */}
-            <div className="flex items-center gap-2 self-end lg:self-auto">
-              {activeFiltersCount > 0 && (
-                <span className="text-[11px] font-semibold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2 py-1 rounded-md">
-                  {activeFiltersCount} {activeFiltersCount === 1 ? "filtro ativo" : "filtros ativos"}
-                </span>
               )}
 
+              {/* Botão de Toggle do Painel de Filtros */}
               <button
                 type="button"
-                onClick={() => applyFilters(1)}
-                disabled={loading}
-                className="flex items-center gap-1.5 rounded-lg border border-cyan-500/50 bg-cyan-500 px-4 py-1.5 text-xs font-bold text-slate-950 shadow-md shadow-cyan-500/20 hover:bg-cyan-400 transition disabled:opacity-50"
+                onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                className={`flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-xs font-semibold transition outline-none ${
+                  isFiltersOpen || advancedFiltersCount > 0
+                    ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-300 shadow-sm shadow-cyan-500/10"
+                    : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-600 hover:text-white"
+                }`}
               >
-                <Filter size={13} />
-                Aplicar Filtros
+                <Filter size={14} className={advancedFiltersCount > 0 ? "text-cyan-400" : "text-slate-400"} />
+                <span>Filtros</span>
+                {advancedFiltersCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500/20 px-1 text-[10px] font-bold text-cyan-300 border border-cyan-500/40">
+                    {advancedFiltersCount}
+                  </span>
+                )}
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 ${isFiltersOpen ? "rotate-180 text-cyan-400" : "text-slate-400"}`}
+                />
               </button>
 
+              {/* Botão Limpar Filtros */}
               {activeFiltersCount > 0 && (
                 <button
                   type="button"
                   onClick={clearFilters}
                   disabled={loading}
-                  className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition disabled:opacity-50"
                   title="Limpar todos os filtros"
                 >
                   <X size={13} />
-                  Limpar
+                  <span>Limpar</span>
                 </button>
               )}
             </div>
           </div>
+
+          {/* Painel Colapsável de Filtros Avançados */}
+          {isFiltersOpen && (
+            <div className="border-t border-slate-800/80 pt-3.5 mt-1 transition-all">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {/* 1. Plataforma */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Plataforma
+                  </label>
+                  <MultiSelectDropdown
+                    label="Todas as Plataformas"
+                    options={systemOptions}
+                    selected={selectedSystems}
+                    onChange={handleSystemsChange}
+                    showSearch
+                    fullWidth
+                  />
+                </div>
+
+                {/* 2. Severidade */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Severidade
+                  </label>
+                  <MultiSelectDropdown
+                    label="Todas as Severidades"
+                    options={severityOptions}
+                    selected={selectedSeverities}
+                    onChange={handleSeveritiesChange}
+                    fullWidth
+                  />
+                </div>
+
+                {/* 3. Status */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Status da Operação
+                  </label>
+                  <MultiSelectDropdown
+                    label="Todos os Status"
+                    options={statusOptions}
+                    selected={selectedStatuses}
+                    onChange={handleStatusesChange}
+                    fullWidth
+                  />
+                </div>
+
+                {/* 4. Ação / Categoria */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Ação ou Categoria
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: product.updated, auth..."
+                    value={action}
+                    onChange={(e) => setAction(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") flushTextFilters();
+                    }}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition"
+                  />
+                </div>
+
+                {/* 5. Ator Responsável */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Ator Responsável
+                  </label>
+                  <div className="relative">
+                    <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type="text"
+                      placeholder="Nome, e-mail, role ou ID..."
+                      value={actor}
+                      onChange={(e) => setActor(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") flushTextFilters();
+                      }}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-8 pr-3 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition"
+                    />
+                  </div>
+                </div>
+
+                {/* 6. Período do Registro (De / Até) */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Calendar size={12} className="text-cyan-400" />
+                    Período do Registro
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 shrink-0">De:</span>
+                      <input
+                        type="datetime-local"
+                        value={startDate}
+                        onChange={(e) => handleStartDateChange(e.target.value)}
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 [color-scheme:dark]"
+                        title="Data e hora inicial"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 shrink-0">Até:</span>
+                      <input
+                        type="datetime-local"
+                        value={endDate}
+                        onChange={(e) => handleEndDateChange(e.target.value)}
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500 [color-scheme:dark]"
+                        title="Data e hora final"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Tabela de Eventos */}
-        <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
+        <div className="relative z-10 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full table-fixed min-w-[1020px] text-left text-xs">
+              <colgroup>
+                <col className="w-[185px]" />
+                <col className="w-[160px]" />
+                <col className="w-[195px]" />
+                <col className="w-[165px]" />
+                <col className="w-[140px]" />
+                <col className="w-[95px]" />
+                <col className="w-[115px]" />
+                <col className="w-[45px]" />
+              </colgroup>
               <thead className="border-b border-slate-800 bg-slate-950/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 <tr>
-                  <th className="px-4 py-3.5">Timestamp</th>
-                  <th className="px-4 py-3.5">Sistema</th>
-                  <th className="px-4 py-3.5">Ação / Categoria</th>
-                  <th className="px-4 py-3.5">Ator</th>
-                  <th className="px-4 py-3.5">Alvos</th>
-                  <th className="px-4 py-3.5">Severidade</th>
-                  <th className="px-4 py-3.5">Integridade</th>
-                  <th className="px-4 py-3.5 text-right">Detalhes</th>
+                  <th className="px-3.5 py-3 truncate">Timestamp</th>
+                  <th className="px-3.5 py-3 truncate">Plataforma</th>
+                  <th className="px-3.5 py-3 truncate">Ação / Categoria</th>
+                  <th className="px-3.5 py-3 truncate">Ator</th>
+                  <th className="px-3.5 py-3 truncate">Alvos</th>
+                  <th className="px-3.5 py-3 truncate">Severidade</th>
+                  <th className="px-3.5 py-3 truncate">Integridade</th>
+                  <th className="px-2 py-3 text-right"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
@@ -690,51 +882,64 @@ export function AuditAdmin() {
                   </tr>
                 ) : data?.events && data.events.length > 0 ? (
                   data.events.map((event) => {
-                    const sysConf = SYSTEM_LABELS[event.system as AuditSystem];
+                    const canonicalSys = normalizeSystemKey(event.system);
+                    const sysConf = SYSTEM_LABELS[canonicalSys as AuditSystem] || SYSTEM_LABELS[event.system as AuditSystem];
+                    const platformLabel = dynamicPlatformNames[canonicalSys] || sysConf?.label || event.system;
                     const isSuccess = event.status === "SUCCESS";
 
                     return (
                       <tr
                         key={event._id}
                         onClick={() => setSelectedEvent(event)}
-                        className="cursor-pointer transition hover:bg-slate-800/40"
+                        className="h-14 cursor-pointer transition hover:bg-slate-800/40"
                       >
                         {/* Timestamp */}
-                        <td className="whitespace-nowrap px-4 py-3.5 font-mono text-[11px] text-slate-300">
+                        <td
+                          className="whitespace-nowrap px-3.5 py-2 font-mono text-[11px] text-slate-300"
+                          title={formatIsoDate(event.timestamp)}
+                        >
                           {formatIsoDate(event.timestamp)}
                         </td>
 
-                        {/* Sistema */}
-                        <td className="whitespace-nowrap px-4 py-3.5">
+                        {/* Plataforma */}
+                        <td className="px-3.5 py-2 overflow-hidden">
                           <span
-                            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                            className={`inline-block max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
                               sysConf
                                 ? `${sysConf.border} ${sysConf.bg} ${sysConf.color}`
                                 : "border-slate-700 bg-slate-800 text-slate-300"
                             }`}
+                            title={platformLabel}
                           >
-                            {sysConf?.label || event.system}
+                            {platformLabel}
                           </span>
                         </td>
 
                         {/* Ação / Categoria */}
-                        <td className="px-4 py-3.5">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-white">{event.action}</span>
-                            <span className="text-[10px] text-slate-400">{event.category}</span>
+                        <td className="px-3.5 py-2 overflow-hidden">
+                          <div className="flex flex-col justify-center min-w-0 overflow-hidden">
+                            <span className="font-semibold text-white truncate text-xs" title={event.action}>
+                              {event.action}
+                            </span>
+                            <span className="text-[10px] text-slate-400 truncate" title={event.category}>
+                              {event.category}
+                            </span>
                           </div>
                         </td>
 
                         {/* Ator */}
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-1.5">
-                            <User size={13} className="text-slate-400" />
-                            <div className="flex flex-col">
-                              <span className="font-medium text-slate-200">
+                        <td className="px-3.5 py-2 overflow-hidden">
+                          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                            <User size={13} className="text-slate-400 shrink-0" />
+                            <div className="flex flex-col justify-center min-w-0 overflow-hidden">
+                              <span
+                                className="font-medium text-slate-200 truncate text-xs"
+                                title={event.actor?.name || event.actor?.email || "Sistema"}
+                              >
                                 {event.actor?.name || event.actor?.email || "Sistema"}
                               </span>
                               {event.actor?.role && (
-                                <span className="text-[10px] text-slate-400">
+                                <span className="text-[10px] text-slate-400 truncate" title={event.actor.role}>
                                   {event.actor.role}
                                 </span>
                               )}
@@ -743,33 +948,36 @@ export function AuditAdmin() {
                         </td>
 
                         {/* Alvos */}
-                        <td className="px-4 py-3.5">
-                          <div className="flex flex-wrap gap-1">
+                        <td className="px-3.5 py-2 overflow-hidden">
+                          <div className="flex items-center gap-1 min-w-0 overflow-hidden">
                             {event.targets && event.targets.length > 0 ? (
-                              event.targets.slice(0, 2).map((t, idx) => (
+                              <>
                                 <span
-                                  key={idx}
-                                  className="rounded border border-slate-700 bg-slate-800/80 px-1.5 py-0.5 text-[10px] text-slate-300"
+                                  className="rounded border border-slate-700 bg-slate-800/80 px-1.5 py-0.5 text-[10px] text-slate-300 truncate max-w-[105px]"
+                                  title={event.targets[0].label || `${event.targets[0].type}:${event.targets[0].id}`}
                                 >
-                                  {t.label || `${t.type}:${t.id}`}
+                                  {event.targets[0].label || `${event.targets[0].type}:${event.targets[0].id}`}
                                 </span>
-                              ))
+                                {event.targets.length > 1 && (
+                                  <span
+                                    className="shrink-0 rounded bg-slate-800 px-1 py-0.5 text-[10px] text-slate-400 font-mono"
+                                    title={event.targets.slice(1).map((t) => t.label || `${t.type}:${t.id}`).join(", ")}
+                                  >
+                                    +{event.targets.length - 1}
+                                  </span>
+                                )}
+                              </>
                             ) : (
                               <span className="text-slate-500">-</span>
-                            )}
-                            {event.targets && event.targets.length > 2 && (
-                              <span className="rounded bg-slate-800 px-1 text-[10px] text-slate-400">
-                                +{event.targets.length - 2}
-                              </span>
                             )}
                           </div>
                         </td>
 
                         {/* Severidade & Status */}
-                        <td className="whitespace-nowrap px-4 py-3.5">
+                        <td className="whitespace-nowrap px-3.5 py-2 overflow-hidden">
                           <div className="flex items-center gap-1.5">
                             <span
-                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold shrink-0 ${
                                 event.severity === "CRITICAL"
                                   ? "bg-rose-500/20 text-rose-300"
                                   : event.severity === "WARNING"
@@ -780,7 +988,7 @@ export function AuditAdmin() {
                               {event.severity}
                             </span>
                             <span
-                              className={`h-1.5 w-1.5 rounded-full ${
+                              className={`h-1.5 w-1.5 rounded-full shrink-0 ${
                                 isSuccess ? "bg-emerald-400" : "bg-rose-400"
                               }`}
                               title={event.status}
@@ -789,19 +997,19 @@ export function AuditAdmin() {
                         </td>
 
                         {/* Integridade HMAC SHA-256 */}
-                        <td className="whitespace-nowrap px-4 py-3.5">
+                        <td className="whitespace-nowrap px-3.5 py-2 overflow-hidden">
                           {event.hash ? (
-                            <div className="flex items-center gap-1 text-emerald-400">
-                              <Lock size={12} />
-                              <span className="font-mono text-[10px]">Encadeado</span>
+                            <div className="flex items-center gap-1 text-emerald-400 truncate" title={`Hash: ${event.hash}`}>
+                              <Lock size={12} className="shrink-0" />
+                              <span className="font-mono text-[10px] truncate">Encadeado</span>
                             </div>
                           ) : (
-                            <span className="text-[10px] text-slate-500">Sem hash</span>
+                            <span className="text-[10px] text-slate-500 truncate">Sem hash</span>
                           )}
                         </td>
 
                         {/* Ação */}
-                        <td className="whitespace-nowrap px-4 py-3.5 text-right">
+                        <td className="whitespace-nowrap px-2 py-2 text-right">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -809,6 +1017,7 @@ export function AuditAdmin() {
                               setSelectedEvent(event);
                             }}
                             className="rounded p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                            title="Ver detalhes completos"
                           >
                             <ChevronRight size={16} />
                           </button>
@@ -844,8 +1053,8 @@ export function AuditAdmin() {
           limit={limit}
           total={data?.total ?? 0}
           totalPages={data?.totalPages ?? 1}
-          onPageChange={(newPage) => applyFilters(newPage, limit)}
-          onLimitChange={(newLimit) => applyFilters(1, newLimit)}
+          onPageChange={handlePageChange}
+          onLimitChange={handleLimitChange}
           disabled={loading}
         />
 
@@ -898,26 +1107,36 @@ export function AuditAdmin() {
               {/* Corpo do Modal com Abas / Seções */}
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {/* Metadados Principais */}
-                <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:grid-cols-4">
-                  <div>
-                    <span className="text-[11px] font-medium text-slate-500">Sistema</span>
-                    <p className="mt-0.5 text-xs font-semibold text-cyan-300">{selectedEvent.system}</p>
-                  </div>
-                  <div>
-                    <span className="text-[11px] font-medium text-slate-500">Severidade</span>
-                    <p className="mt-0.5 text-xs font-semibold text-slate-200">{selectedEvent.severity}</p>
-                  </div>
-                  <div>
-                    <span className="text-[11px] font-medium text-slate-500">Status</span>
-                    <p className="mt-0.5 text-xs font-semibold text-emerald-400">{selectedEvent.status}</p>
-                  </div>
-                  <div>
-                    <span className="text-[11px] font-medium text-slate-500">Timestamp</span>
-                    <p className="mt-0.5 font-mono text-xs text-slate-300">
-                      {formatIsoDate(selectedEvent.timestamp)}
-                    </p>
-                  </div>
-                </div>
+                {(() => {
+                  const modalCanonical = normalizeSystemKey(selectedEvent.system);
+                  const modalSysConf = SYSTEM_LABELS[modalCanonical as AuditSystem] || SYSTEM_LABELS[selectedEvent.system as AuditSystem];
+                  const modalPlatformLabel = dynamicPlatformNames[modalCanonical] || modalSysConf?.label || selectedEvent.system;
+
+                  return (
+                    <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:grid-cols-4">
+                      <div>
+                        <span className="text-[11px] font-medium text-slate-500">Plataforma</span>
+                        <p className={`mt-0.5 text-xs font-semibold ${modalSysConf?.color || "text-cyan-300"}`}>
+                          {modalPlatformLabel}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-medium text-slate-500">Severidade</span>
+                        <p className="mt-0.5 text-xs font-semibold text-slate-200">{selectedEvent.severity}</p>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-medium text-slate-500">Status</span>
+                        <p className="mt-0.5 text-xs font-semibold text-emerald-400">{selectedEvent.status}</p>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-medium text-slate-500">Timestamp</span>
+                        <p className="mt-0.5 font-mono text-xs text-slate-300">
+                          {formatIsoDate(selectedEvent.timestamp)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Ator e Contexto */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

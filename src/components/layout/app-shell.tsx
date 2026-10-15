@@ -182,7 +182,7 @@ export function AppShell({
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#0f3b68_0,#020617_36%,#020617_100%)] text-slate-100">
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-5">
-        <header className="relative z-30 mb-6 grid grid-cols-[auto_1fr] items-center gap-4 border-b border-cyan-400/15 pb-5 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <header className="relative z-40 mb-6 grid grid-cols-[auto_1fr] items-center gap-4 border-b border-cyan-400/15 pb-5 lg:grid-cols-[minmax(0,1fr)_auto]">
           <Link href="/home" className="flex min-w-0 items-center gap-3">
             <BrandMark />
             <span className="hidden text-base font-semibold text-slate-200 sm:block">
@@ -190,7 +190,7 @@ export function AppShell({
             </span>
           </Link>
 
-          <nav className="absolute left-1/2 top-1/2 z-30 hidden -translate-x-1/2 -translate-y-1/2 flex-wrap justify-center gap-2 lg:flex">
+          <nav className="absolute left-1/2 top-1/2 z-40 hidden -translate-x-1/2 -translate-y-1/2 flex-wrap justify-center gap-2 lg:flex">
             {visibleNavigationItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -275,7 +275,7 @@ export function AppShell({
             ) : null}
           </nav>
 
-          <div ref={menuRef} className="relative z-30 col-start-2 row-start-1 flex justify-end gap-2 lg:col-start-2 lg:row-start-auto">
+          <div ref={menuRef} className="relative z-40 col-start-2 row-start-1 flex justify-end gap-2 lg:col-start-2 lg:row-start-auto">
             <ThemeToggleButton className="px-3" />
 
             <div className="relative">
