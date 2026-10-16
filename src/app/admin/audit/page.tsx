@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { AuditAdmin } from "@/components/admin/audit-admin";
 
 export const metadata = {
-  title: "Auditoria | RaroNexus",
+  title: "RaroNexus",
   description: "Trilha unificada de auditoria, conformidade LGPD e segurança da informação.",
 };
 

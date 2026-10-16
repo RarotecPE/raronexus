@@ -899,7 +899,7 @@ export function AuditAdmin() {
 
   const hasValidModificationDiff = useMemo(() => {
     if (!selectedEvent) return false;
-    if (/\.(created|deleted|removed|uploaded|cancelled|cloned|invited)$/i.test(selectedEvent.action)) {
+    if (/[._](created|deleted|removed|uploaded|cloned|invited|published|invite_cancelled)$/i.test(selectedEvent.action)) {
       return false;
     }
     if (selectedEvent.diff) {
