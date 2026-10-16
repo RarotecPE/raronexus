@@ -897,8 +897,21 @@ export function AuditAdmin() {
   const limit = data?.limit ?? (parseInt(searchParams.get("limit") || "25", 10) || 25);
   const stats = data?.stats;
 
+  const hasValidModificationDiff = useMemo(() => {
+    if (!selectedEvent) return false;
+    if (/\.(created|deleted|removed|uploaded|cancelled|cloned|invited)$/i.test(selectedEvent.action)) {
+      return false;
+    }
+    if (selectedEvent.diff) {
+      const beforeKeys = Object.keys(selectedEvent.diff.before || {});
+      const afterKeys = Object.keys(selectedEvent.diff.after || {});
+      return beforeKeys.length > 0 && afterKeys.length > 0;
+    }
+    return Boolean(selectedEvent.changes && selectedEvent.changes.length > 0);
+  }, [selectedEvent]);
+
   const changedKeysSet = useMemo(() => {
-    if (!selectedEvent) return new Set<string>();
+    if (!selectedEvent || !hasValidModificationDiff) return new Set<string>();
     if (selectedEvent.changes && selectedEvent.changes.length > 0) {
       return new Set(selectedEvent.changes.map((c) => c.field));
     }
@@ -912,14 +925,14 @@ export function AuditAdmin() {
       }
     }
     return diffs;
-  }, [selectedEvent]);
+  }, [selectedEvent, hasValidModificationDiff]);
 
   const allDiffKeys = useMemo(() => {
-    if (!selectedEvent?.diff) return [];
+    if (!selectedEvent?.diff || !hasValidModificationDiff) return [];
     const beforeKeys = Object.keys(selectedEvent.diff.before || {});
     const afterKeys = Object.keys(selectedEvent.diff.after || {});
     return Array.from(new Set([...beforeKeys, ...afterKeys]));
-  }, [selectedEvent]);
+  }, [selectedEvent, hasValidModificationDiff]);
 
   return (
     <AppShell title="Auditoria">
@@ -1691,7 +1704,7 @@ export function AuditAdmin() {
                 </div>
 
                 {/* Rastreamento de Alterações (Antes vs Depois) */}
-                {(selectedEvent.diff || (selectedEvent.changes && selectedEvent.changes.length > 0)) && (
+                {hasValidModificationDiff && (
                   <div className="rounded-xl border border-cyan-500/30 bg-slate-900/60 p-4 space-y-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-2">

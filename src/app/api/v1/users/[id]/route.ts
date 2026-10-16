@@ -67,7 +67,12 @@ export async function DELETE(request: Request, { params }: Params) {
     rateLimit(request, 40, 60_000);
     const { id } = await params;
     const context = await new AuthService().authenticate(request);
+    const existing = await new UserService().find(context, id).catch(() => null);
     const result = await new UserService().remove(context, id);
+
+    const userLabel = existing?.nome
+      ? `${existing.nome} (${existing.email})`
+      : existing?.email || `Usuário #${id}`;
 
     auditClient.log({
       system: "raronexus",
@@ -86,12 +91,15 @@ export async function DELETE(request: Request, { params }: Params) {
         {
           type: "user",
           id,
-          label: `User ${id}`,
+          label: userLabel,
         },
       ],
       context: getRequestContext(request),
       details: {
         deleted: true,
+        user_id: id,
+        nome: existing?.nome ?? null,
+        email: existing?.email ?? null,
       },
     });
 

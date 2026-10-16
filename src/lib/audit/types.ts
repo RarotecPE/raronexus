@@ -14,7 +14,8 @@ export interface AuditActor {
   userId?: string;
   name?: string;
   email?: string;
-  role?: string;
+  role?: string | null;
+  systemName?: string;
 }
 
 export interface AuditTarget {
