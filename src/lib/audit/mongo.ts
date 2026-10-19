@@ -4,42 +4,33 @@ import { AuditEnvelope } from './types';
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_DB_NAME || 'rarotec_audit';
 
-let client: MongoClient;
-let clientPromise: Promise<MongoClient>;
-
 declare global {
   // eslint-disable-next-line no-var
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-if (!uri) {
-  // Em build time sem env, exportamos stub para não quebrar coleta estática de páginas
-  clientPromise = Promise.reject(new Error('MONGODB_URI não configurada no ambiente.'));
-} else {
-  if (process.env.NODE_ENV === 'development') {
-    if (!global._mongoClientPromise) {
-      client = new MongoClient(uri, {
-        maxPoolSize: 10,
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000,
-      });
-      global._mongoClientPromise = client.connect();
-    }
-    clientPromise = global._mongoClientPromise;
-  } else {
-    client = new MongoClient(uri, {
+export async function getAuditClient(): Promise<MongoClient> {
+  if (!uri) {
+    throw new Error('MONGODB_URI não configurada no ambiente.');
+  }
+
+  if (!global._mongoClientPromise) {
+    const client = new MongoClient(uri, {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       connectTimeoutMS: 5000,
     });
-    clientPromise = client.connect();
+    global._mongoClientPromise = client.connect().catch((err) => {
+      global._mongoClientPromise = undefined;
+      throw err;
+    });
   }
+
+  return global._mongoClientPromise;
 }
 
-export default clientPromise;
-
 export async function getAuditDb(): Promise<Db> {
-  const connectedClient = await clientPromise;
+  const connectedClient = await getAuditClient();
   return connectedClient.db(dbName);
 }
 
@@ -48,3 +39,7 @@ export async function getAuditCollection(): Promise<Collection<AuditEnvelope>> {
   return db.collection<AuditEnvelope>('audit_events');
 }
 
+export default {
+  then: (...args: Parameters<Promise<MongoClient>['then']>) => getAuditClient().then(...args),
+  catch: (...args: Parameters<Promise<MongoClient>['catch']>) => getAuditClient().catch(...args),
+};
