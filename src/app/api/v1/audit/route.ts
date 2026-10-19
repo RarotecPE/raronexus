@@ -4,13 +4,8 @@ import { ok } from "@/lib/api/response";
 import { AuthService } from "@/lib/api/services/auth-service";
 import { ApiException } from "@/lib/api/errors";
 import { getAuditCollection } from "@/lib/audit/mongo";
-import {
-  getAuditRedisClient,
-  AUDIT_STREAM_KEY,
-  readAuditBatchFromQueue,
-  ackAuditMessages,
-  pushToDLQ,
-} from "@/lib/audit/queue";
+import { getAuditRedisClient, AUDIT_STREAM_KEY } from "@/lib/audit/queue";
+import { drainAuditBatch } from "@/lib/audit/drain";
 import { tokenize } from "@/lib/audit/tokens";
 import type { AuditEnvelope } from "@/lib/audit/types";
 import type { Filter } from "mongodb";
@@ -55,44 +50,9 @@ export async function GET(request: Request) {
 
     const collection = await getAuditCollection();
 
-    // Drenagem automática transparente: toda vez que o usuário consulta/atualiza
+    // Drenagem automática transparente com lock distribuído e encadeamento criptográfico contínuo
     try {
-      const BATCH_SIZE = 100;
-      const batch = await readAuditBatchFromQueue(BATCH_SIZE);
-
-      if (batch.length > 0) {
-        const validEnvelopes: AuditEnvelope[] = [];
-        const validMessageIds: string[] = [];
-        const nowIso = new Date().toISOString();
-
-        for (const item of batch) {
-          if (!item.envelope || !item.envelope._id) {
-            await pushToDLQ(
-              item.id,
-              item.rawPayload,
-              "Payload de auditoria inválido ou corrompido"
-            );
-            validMessageIds.push(item.id);
-            continue;
-          }
-
-          item.envelope.ingestedAt = nowIso;
-          validEnvelopes.push(item.envelope);
-          validMessageIds.push(item.id);
-        }
-
-        if (validEnvelopes.length > 0) {
-          try {
-            await collection.insertMany(validEnvelopes, { ordered: false });
-          } catch (insertErr: any) {
-            if (insertErr?.code !== 11000) {
-              console.error("[AutoDrain Error]:", insertErr);
-            }
-          }
-        }
-
-        await ackAuditMessages(validMessageIds);
-      }
+      await drainAuditBatch({ batchSize: 100 });
     } catch (drainErr) {
       console.warn("[AutoDrain Queue Warning]:", drainErr);
     }

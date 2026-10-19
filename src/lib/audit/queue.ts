@@ -131,3 +131,47 @@ export async function getQueueStats(): Promise<{ streamLength: number; dlqLength
   ]);
   return { streamLength, dlqLength };
 }
+
+export const AUDIT_DRAIN_LOCK_KEY = 'audit:drain:lock';
+export const AUDIT_DRAIN_LOCK_TTL_MS = 20000;
+export const AUDIT_LAST_HASH_PREFIX = 'audit:last_hash:';
+
+/**
+ * Adquire trava atômica distribuída no Redis para impedir concorrência entre workers.
+ */
+export async function acquireDrainLock(): Promise<boolean> {
+  const redis = getAuditRedisClient();
+  const res = await redis.set(AUDIT_DRAIN_LOCK_KEY, 'locked', {
+    nx: true,
+    px: AUDIT_DRAIN_LOCK_TTL_MS,
+  });
+  return res === 'OK';
+}
+
+/**
+ * Libera a trava de drenagem.
+ */
+export async function releaseDrainLock(): Promise<void> {
+  try {
+    const redis = getAuditRedisClient();
+    await redis.del(AUDIT_DRAIN_LOCK_KEY);
+  } catch {
+    // Silencia se a chave expirou ou foi liberada
+  }
+}
+
+/**
+ * Recupera o último hash criptográfico persistido para determinado sistema.
+ */
+export async function getLastHashForSystem(system: string): Promise<string | null> {
+  const redis = getAuditRedisClient();
+  return redis.get<string>(`${AUDIT_LAST_HASH_PREFIX}${system}`);
+}
+
+/**
+ * Atualiza o último hash criptográfico para determinado sistema no Redis.
+ */
+export async function setLastHashForSystem(system: string, hash: string): Promise<void> {
+  const redis = getAuditRedisClient();
+  await redis.set(`${AUDIT_LAST_HASH_PREFIX}${system}`, hash);
+}

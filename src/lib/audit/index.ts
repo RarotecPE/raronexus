@@ -6,6 +6,7 @@ export * from './hash';
 export * from './queue';
 export * from './mongo';
 export * from './client';
+export * from './drain';
 
 /**
  * Extrai IP e User-Agent de um Request HTTP de forma segura.
