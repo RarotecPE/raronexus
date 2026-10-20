@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { Receiver } from '@upstash/qstash';
 import { getQueueStats } from '@/lib/audit/queue';
@@ -10,9 +11,15 @@ async function verifyAuth(request: NextRequest, bodyText: string): Promise<boole
   const authHeader = request.headers.get('authorization');
   const systemSecret = process.env.AUDIT_SYSTEM_SECRET;
 
-  // 1. Autenticação via Bearer token (chamadas manuais ou sistemas autorizados)
-  if (systemSecret && authHeader === `Bearer ${systemSecret}`) {
-    return true;
+  // 1. Autenticação via Bearer token (comparação em tempo constante contra timing attacks)
+  if (systemSecret && authHeader) {
+    const expected = `Bearer ${systemSecret}`;
+    if (
+      authHeader.length === expected.length &&
+      crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+    ) {
+      return true;
+    }
   }
 
   // 2. Autenticação via assinatura QStash

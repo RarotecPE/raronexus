@@ -119,16 +119,23 @@ export async function GET(request: Request) {
       }
     }
 
-    // 4. Período direto (startDate / endDate)
+    // 4. Período direto (startDate / endDate) com validação defensiva
     if (startDate || endDate) {
-      filter.timestamp = {};
+      const timeFilter: Record<string, string> = {};
       if (startDate) {
-        const startIso = new Date(startDate).toISOString();
-        if (startIso) filter.timestamp.$gte = startIso;
+        const startD = new Date(startDate);
+        if (!isNaN(startD.getTime())) {
+          timeFilter.$gte = startD.toISOString();
+        }
       }
       if (endDate) {
-        const endIso = new Date(endDate).toISOString();
-        if (endIso) filter.timestamp.$lte = endIso;
+        const endD = new Date(endDate);
+        if (!isNaN(endD.getTime())) {
+          timeFilter.$lte = endD.toISOString();
+        }
+      }
+      if (Object.keys(timeFilter).length > 0) {
+        filter.timestamp = timeFilter;
       }
     }
 
