@@ -149,6 +149,14 @@ export interface AuditEnvelopeInput {
   - Correto: `user.created`, `expense.approved`, `equipment.returned`, `contract.cancelled`.
   - Incorreto: `criar_usuario`, `approveExpense`, `RETURN_EQUIPMENT`.
 
+### Regras Obrigatórias para Anexos e Arquivos em `details`:
+Sempre que uma ação envolver envio, associação, substituição ou exclusão de anexo(s) (ex.: comprovantes fiscais, termos de responsabilidade/devolução assinados, atestados, relatórios periciais, propostas contratuais), o JSON do log (`details`) deve explicitar a presença e os metadados do arquivo:
+- **Indicador Booleano**: Forneça um booleano claro indicando a presença do documento (ex.: `hasTerm: true`, `hasInvoice: true`, `hasReceipt: true`).
+- **Nome do Arquivo (`filename`)**: Registre o nome original ou nome normalizado gerado no armazenamento (ex.: `filename`, `termFilename`, `invoiceFilename`, `receipt_pathname`).
+- **Caminho Físico no Storage (`storagePath`)**: Quando disponível, registre a chave ou caminho relativo no storage (R2/S3/FTP), permitindo auditoria pericial sem depender de URLs públicas ou assinadas que expiram com o tempo.
+- **Múltiplos Anexos**: Se o formulário permitir múltiplos arquivos, registre uma lista contendo os metadados de cada arquivo (ex.: `arquivos: [{ nome_arquivo, tipo_arquivo, tamanho }]`).
+- **Exclusão de Arquivo**: Ao desvincular ou deletar um anexo, registre no `details` o nome do arquivo removido (ex.: `removedFilename` ou `removedInvoiceFilename`) e capture no `diff` a transição de estado.
+
 ---
 
 ## 4. Proteção de Dados e Conformidade com a LGPD
@@ -426,6 +434,7 @@ Ao planejar, codificar ou refatorar qualquer funcionalidade no ecossistema RaroT
 - [ ] **Nomenclatura**: A ação segue o padrão `entidade.acao_no_passado` (ex: `invoice.approved`)?
 - [ ] **Autoria**: O `actor` identifica o usuário autenticado da sessão (`id`, `nome`, `email`, `cargo`) ou o serviço em caso de rotinas automáticas (`system`)?
 - [ ] **Alvos (`targets`)**: Há pelo menos um alvo identificando claramente o tipo, id e rótulo amigável da entidade impactada?
+- [ ] **Rastreamento de Anexos**: Se o formulário ou ação processou, vinculou ou alterou anexo(s) (termos, notas fiscais, fotos, comprovantes), os metadados do arquivo (`filename`, `storagePath`, booleano `has<Attachment>`) foram registrados em `details` ou `diff`?
 - [ ] **Rastreamento de Mudança (`diff`)**: Em operações de atualização (`updated`, `status_changed`), o objeto `diff` contendo `{ before, after }` foi fornecido?
 - [ ] **Conformidade LGPD**: Garantiu que senhas brutas, tokens e dados bancários confidenciais não foram injetados em campos livres?
 - [ ] **Não-Bloqueante**: A chamada utiliza `auditClient.log(...)` sem travar o tempo de resposta retornado ao usuário final?
