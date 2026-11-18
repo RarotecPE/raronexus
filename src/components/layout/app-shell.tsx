@@ -39,6 +39,23 @@ const apiNavigationItems = [
   { label: "Constantes", href: "/admin/constants", icon: Braces },
 ];
 
+function getApplicationOpenUrl(application: { client_id: string; homepage_url?: string | null }) {
+  if (!application.homepage_url) return "#";
+  if (application.client_id === "raronexus") return application.homepage_url;
+
+  try {
+    const raw = new URL(application.homepage_url);
+    const startUrl = new URL("/api/auth/raronexus/start", raw.origin);
+    const nextPath = raw.pathname && raw.pathname !== "/"
+      ? raw.pathname
+      : (application.client_id.startsWith("rarotickets") ? "/painel" : "/dashboard");
+    startUrl.searchParams.set("next", nextPath);
+    return startUrl.toString();
+  } catch {
+    return application.homepage_url;
+  }
+}
+
 export function AppShell({
   title,
   children,
@@ -312,7 +329,7 @@ export function AppShell({
                         <a
                           key={application.id}
                           className="flex items-center gap-3 rounded-md px-3 py-2 text-left transition hover:bg-slate-900/80"
-                          href={application.homepage_url ?? "#"}
+                          href={getApplicationOpenUrl(application)}
                           target="_blank"
                           rel="noreferrer"
                         >

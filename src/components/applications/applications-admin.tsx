@@ -120,9 +120,16 @@ function getApplicationHost(homepageUrl?: string | null) {
 
 function getApplicationOpenUrl(application: ApplicationResponseDTO) {
   if (!application.homepage_url) return "";
+  if (application.client_id === "raronexus") return application.homepage_url;
 
   try {
-    return new URL("/api/auth/raronexus/start", application.homepage_url).toString();
+    const raw = new URL(application.homepage_url);
+    const startUrl = new URL("/api/auth/raronexus/start", raw.origin);
+    const nextPath = raw.pathname && raw.pathname !== "/"
+      ? raw.pathname
+      : (application.client_id.startsWith("rarotickets") ? "/painel" : "/dashboard");
+    startUrl.searchParams.set("next", nextPath);
+    return startUrl.toString();
   } catch {
     return application.homepage_url;
   }
