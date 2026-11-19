@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const clientId = typeof body.client_id === "string" ? body.client_id.trim() : "";
     const clientSecret = typeof body.client_secret === "string" ? body.client_secret.trim() : "";
+    const scope = typeof body.scope === "string" ? body.scope.trim().toLowerCase() : "application";
 
     if (!clientId || !clientSecret) {
       throw new ApiException("Credenciais da aplicacao nao informadas.", "APPLICATION_CREDENTIALS_REQUIRED", 401);
@@ -43,6 +44,42 @@ export async function POST(request: Request) {
     if (applicationError) throw applicationError;
     if (!application || !application.ativo || application.client_secret !== clientSecret) {
       throw new ApiException("Aplicacao invalida ou credenciais incorretas.", "INVALID_APPLICATION_CREDENTIALS", 401);
+    }
+
+    if (scope === "all") {
+      const { data: allUsers, error: allUsersError } = await supabase
+        .from("users")
+        .select("id, nome, email, avatar_url, cpf, telefone, ativo")
+        .eq("ativo", true)
+        .returns<
+          Array<{
+            id: string;
+            nome: string | null;
+            email: string;
+            avatar_url: string | null;
+            cpf: string | null;
+            telefone: string | null;
+            ativo: boolean;
+          }>
+        >();
+
+      if (allUsersError) throw allUsersError;
+
+      const directoryUsers = (allUsers ?? [])
+        .filter((user) => Boolean(user.ativo && user.email))
+        .map((user) => ({
+          id: user.id,
+          nome: user.nome?.trim() || user.email,
+          email: user.email,
+          avatar_url: user.avatar_url ?? null,
+          cpf: user.cpf ?? null,
+          telefone: user.telefone ?? null,
+          role_nome: null,
+          role_chave: null,
+        }))
+        .sort((left, right) => left.nome.localeCompare(right.nome, "pt-BR"));
+
+      return ok(directoryUsers);
     }
 
     const { data, error } = await supabase
