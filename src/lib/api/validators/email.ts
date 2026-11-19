@@ -75,7 +75,7 @@ const emailListSchema = z.union([
   z.array(z.email()).min(1).max(50),
 ]).transform((value) => (Array.isArray(value) ? value : [value]));
 
-const emailAttachmentSchema = z.object({
+const base64AttachmentSchema = z.object({
   filename: z.string().trim().min(1).max(140),
   content_type: z.string().trim().min(1).max(100),
   content_base64: z.string().trim().min(1),
@@ -83,6 +83,24 @@ const emailAttachmentSchema = z.object({
   const size = Buffer.byteLength(attachment.content_base64, "base64");
   return size > 0 && size <= 15 * 1024 * 1024;
 }, "O anexo deve ter até 15 MB.");
+
+const urlAttachmentSchema = z.object({
+  filename: z.string().trim().min(1).max(140),
+  content_type: z.string().trim().min(1).max(100),
+  content_url: z.url().refine((value) => {
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === "https:" || parsed.protocol === "http:";
+    } catch {
+      return false;
+    }
+  }, "URL de anexo inválida."),
+});
+
+const emailAttachmentSchema = z.union([
+  base64AttachmentSchema,
+  urlAttachmentSchema,
+]);
 
 export const sendEmailSchema = z.object({
   to: emailListSchema,

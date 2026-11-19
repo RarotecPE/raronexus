@@ -367,12 +367,47 @@ export class EmailService {
     };
   }
 
-  private mapAttachments(input: SendInput["attachments"]) {
-    return input?.map((attachment) => ({
-      filename: attachment.filename,
-      content: Buffer.from(attachment.content_base64, "base64"),
-      contentType: attachment.content_type,
-    }));
+  private async mapAttachments(input: SendInput["attachments"]) {
+    if (!input?.length) return undefined;
+
+    const resolved = await Promise.all(
+      input.map(async (attachment) => {
+        if ("content_url" in attachment) {
+          const response = await fetch(attachment.content_url, {
+            cache: "no-store",
+            signal: AbortSignal.timeout(20_000),
+          });
+          if (!response.ok) {
+            throw new ApiException(
+              `Nao foi possivel baixar o anexo "${attachment.filename}" (HTTP ${response.status}).`,
+              "EMAIL_ATTACHMENT_FETCH_FAILED",
+              422,
+            );
+          }
+          const buffer = Buffer.from(await response.arrayBuffer());
+          if (buffer.byteLength <= 0 || buffer.byteLength > 15 * 1024 * 1024) {
+            throw new ApiException(
+              `O anexo "${attachment.filename}" excede o limite de 15 MB ou esta vazio.`,
+              "EMAIL_ATTACHMENT_INVALID_SIZE",
+              422,
+            );
+          }
+          return {
+            filename: attachment.filename,
+            content: buffer,
+            contentType: attachment.content_type,
+          };
+        }
+
+        return {
+          filename: attachment.filename,
+          content: Buffer.from(attachment.content_base64, "base64"),
+          contentType: attachment.content_type,
+        };
+      }),
+    );
+
+    return resolved;
   }
 
   async sendFromApplication(request: Request, input: SendInput, endpoint: EmailEndpointKey = "send") {
@@ -391,6 +426,7 @@ export class EmailService {
         );
       }
 
+      const attachments = await this.mapAttachments(input.attachments);
       const result = await sendTemplatedEmail({
         to: input.to,
         subject,
@@ -402,7 +438,7 @@ export class EmailService {
         fromName: template.fromName,
         platformName: template.platformName,
         replyTo: template.replyTo,
-        attachments: this.mapAttachments(input.attachments),
+        attachments,
       });
 
       await this.log({
